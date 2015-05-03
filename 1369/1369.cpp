@@ -1,5 +1,11 @@
 #ifdef __linux__
 #   include <x86intrin.h>
+
+typedef int HANDLE;
+typedef int DWORD;
+typedef void* LPVOID;
+#   define WINAPI
+
 #else
 #   include <immintrin.h>
 #   include <intrin.h>
@@ -12,7 +18,7 @@
 #pragma GCC optimize("O3")
 
 #include <cstdio>
-#include <cstdlib>
+#include <cstring>
 #include <cmath>
 
 #include <vector>
@@ -22,7 +28,8 @@ using namespace std;
 
 typedef vector<int> TIntVector;
 
-template<typename T> T Sqr(T x)
+template<typename T>
+T Sqr(T x)
 {
     return x*x;
 }
@@ -32,9 +39,20 @@ void Output(const TIntVector& vct)
     char buffer[100];
     for (size_t i = 0; i < vct.size(); ++i)
     {
-        itoa(vct[i] + 1, buffer, 10);
+        int num = vct[i] + 1;
+        char* pBuffer = buffer;
+        while (num)
+        {
+            *pBuffer = (num % 10) + '0';
+            num /= 10;
+            ++pBuffer;
+        }
+        *pBuffer = 0;
+        std::reverse(buffer, pBuffer);
+        *pBuffer = ' ';
+        ++pBuffer;
+        *pBuffer = 0;
         fputs(buffer, stdout);
-        putchar(' ');
     }
     fputs("\n", stdout);
 }
@@ -79,13 +97,11 @@ DWORD WINAPI Nop(LPVOID param)
             {
                 if (dx4[k] < min)
                 {
-                    static const float EPS = 1e-3;
-                    /*
+                    static const float EPS = 3e-7;
                     if (dx4[k] < minMin)
                     {
                         tParam->result.clear();
                     }
-                    */
                     min = dx4[k];
                     minMax = _mm_set1_ps(min + EPS);
                     minMin = min - EPS;
@@ -104,6 +120,10 @@ int main()
     freopen("input.txt", "r", stdin);
 #endif
 
+#ifndef __linux__
+    SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
+#endif
+
     int m;
     scanf("%d", &m);
 
@@ -114,7 +134,7 @@ int main()
     long double mx = 0.001;
     for (int i = 0; i < m; ++i)
     {
-        scanf("%llf%llf", &xcd[i], &ycd[i]);
+        scanf("%Lf%Lf", &xcd[i], &ycd[i]);
         mx = std::max(mx, abs(xcd[i]));
         mx = std::max(mx, abs(ycd[i]));
     }
@@ -171,7 +191,7 @@ int main()
     for (int i = 0; i < n; ++i)
     {
         long double xd, yd;
-        scanf("%llf%llf", &xd, &yd);
+        scanf("%Lf%Lf", &xd, &yd);
 
         float x, y;
         x = xd/mx;
@@ -179,7 +199,17 @@ int main()
         x4 = _mm_set1_ps(x);
         y4 = _mm_set1_ps(y);
 
-        /*
+#if !defined(__linux__) && defined(MT_1369)
+	/*	
+	The Timus machine has four cores.	
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	if (4 == si.dwNumberOfProcessors)
+	{
+            return 0;	
+	}
+	*/
+
         for (int j = 0; j < NTHREADS; ++j)
         {
             params[j].thread = CreateThread(0, 0, Nop, &(params[j]), 0, 0);
@@ -187,14 +217,20 @@ int main()
             {
                 return 0;
             }
+            SetThreadPriority(params[j].thread, THREAD_PRIORITY_TIME_CRITICAL);
+            SetThreadAffinityMask(params[j].thread, 1 << j);
         }
 
         for (int j = 0; j < NTHREADS; ++j)
         {
             WaitForSingleObject(params[j].thread, INFINITE);
         }
-        */
-        Nop(&(params[0]));
+#else
+        for (size_t iThread = 0; iThread < NTHREADS; ++iThread)
+        {
+            Nop(&(params[iThread]));
+        }
+#endif
 
         result2.clear();
         long double mind = 1e15;
