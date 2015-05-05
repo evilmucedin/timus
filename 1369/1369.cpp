@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #ifdef __linux__
 #   include <x86intrin.h>
 
@@ -12,10 +14,10 @@ typedef void* LPVOID;
 #   include <windows.h>
 #endif
 
-#define _CRT_SECURE_NO_WARNINGS
-
-#pragma GCC target("sse4.2")
-#pragma GCC optimize("O3")
+#ifndef _MSC_VER
+#   pragma GCC target("sse4.2")
+#   pragma GCC optimize("O3")
+#endif
 
 #include <cstdio>
 #include <cstring>
@@ -57,61 +59,16 @@ void Output(const TIntVector& vct)
     fputs("\n", stdout);
 }
 
-__m128 x4;
-__m128 y4;
-__m128* xc4;
-__m128* yc4;
-int* indexes;
+#ifndef _MSC_VER
+#   define GET_ITEM(var, index) (var)[(index)]
+#else
+#   define GET_ITEM(var, index) (var).m128_f32[(index)]
+#endif
 
-struct TThreadParam
+template<typename T>
+T Max(T a, T b)
 {
-    int begin;
-    int end;
-    TIntVector result;
-    HANDLE thread;
-};
-
- __attribute__((force_align_arg_pointer))
-DWORD WINAPI Nop(LPVOID param)
-{
-    TThreadParam* tParam = (TThreadParam*)param;
-
-    static const float INF = 1e16f;
-    float min = INF;
-    __m128 minMax = _mm_set1_ps(INF);
-    float minMin = INF;
-
-    tParam->result.clear();
-    for (int j = tParam->begin; j < tParam->end; ++j)
-    {
-        __m128 dx4 = _mm_sub_ps(xc4[j], x4);
-        dx4 = _mm_mul_ps(dx4, dx4);
-        __m128 dy4 = _mm_sub_ps(yc4[j], y4);
-        dy4 = _mm_mul_ps(dy4, dy4);
-        dx4 = _mm_add_ps(dx4, dy4);
-
-        __m128 cmpMax = _mm_cmplt_ps(dx4, minMax);
-        for (int k = 0; k < 4; ++k)
-        {
-            if (cmpMax[k])
-            {
-                if (dx4[k] < min)
-                {
-                    static const float EPS = 3e-7;
-                    if (dx4[k] < minMin)
-                    {
-                        tParam->result.clear();
-                    }
-                    min = dx4[k];
-                    minMax = _mm_set1_ps(min + EPS);
-                    minMin = min - EPS;
-                }
-                tParam->result.push_back(4 * j + k);
-            }
-        }
-    }
-
-    return 0;
+    return (a > b) ? a : b;
 }
 
 int main()
@@ -135,11 +92,11 @@ int main()
     for (int i = 0; i < m; ++i)
     {
         scanf("%Lf%Lf", &xcd[i], &ycd[i]);
-        mx = std::max(mx, abs(xcd[i]));
-        mx = std::max(mx, abs(ycd[i]));
+        mx = Max(mx, abs(xcd[i]));
+        mx = Max(mx, abs(ycd[i]));
     }
 
-    indexes = new int[size];
+    int* indexes = new int[size];
     for (int i = 0; i < size; ++i)
     {
         indexes[i] = i;
@@ -164,28 +121,18 @@ int main()
     }
 
     const int mLen = m / 4 + 1;
-    xc4 = (__m128*)_mm_malloc(sizeof(__m128)*(mLen), 32);
-    yc4 = (__m128*)_mm_malloc(sizeof(__m128)*(mLen), 32);
+    __m128* xc4 = (__m128*)_mm_malloc(sizeof(__m128)*(mLen), 32);
+    __m128* yc4 = (__m128*)_mm_malloc(sizeof(__m128)*(mLen), 32);
     for (int i = 0; i < mLen; ++i)
     {
         xc4[i] = _mm_load_ps(xc + 4*i);
         yc4[i] = _mm_load_ps(yc + 4*i);
     }
 
-    static const size_t NTHREADS = 1;
-    vector<TThreadParam> params(NTHREADS);
-    int begin = 0;
-    int step = mLen/NTHREADS;
-    for (int i = 0; i < NTHREADS; ++i)
-    {
-        params[i].begin = begin;
-        params[i].end = begin + step;
-        begin += step;
-    }
-    params[NTHREADS - 1].end = mLen;
-
     int n;
     scanf("%d", &n);
+    vector<int> result;
+    result.reserve(m);
     vector<int> result2;
     result2.reserve(m);
     for (int i = 0; i < n; ++i)
@@ -196,64 +143,63 @@ int main()
         float x, y;
         x = xd/mx;
         y = yd/mx;
-        x4 = _mm_set1_ps(x);
-        y4 = _mm_set1_ps(y);
+        __m128 x4 = _mm_set1_ps(x);
+        __m128 y4 = _mm_set1_ps(y);
 
-#if !defined(__linux__) && defined(MT_1369)
-	/*	
-	The Timus machine has four cores.	
-	SYSTEM_INFO si;
-	GetSystemInfo(&si);
-	if (4 == si.dwNumberOfProcessors)
-	{
-            return 0;	
-	}
-	*/
+        static const float INF = 1e16f;
+        float min = INF;
+        __m128 minMax = _mm_set1_ps(INF);
+        float minMin = INF;
 
-        for (int j = 0; j < NTHREADS; ++j)
+        result.clear();
+        for (int j = 0; j < mLen; ++j)
         {
-            params[j].thread = CreateThread(0, 0, Nop, &(params[j]), 0, 0);
-            if (!params[j].thread)
+            __m128 dx4 = _mm_sub_ps(xc4[j], x4);
+            dx4 = _mm_mul_ps(dx4, dx4);
+            __m128 dy4 = _mm_sub_ps(yc4[j], y4);
+            dy4 = _mm_mul_ps(dy4, dy4);
+            dx4 = _mm_add_ps(dx4, dy4);
+
+            __m128 cmpMax = _mm_cmplt_ps(dx4, minMax);
+            for (int k = 0; k < 4; ++k)
             {
-                return 0;
+                if (GET_ITEM(cmpMax, k))
+                {
+                    if (GET_ITEM(dx4, k) < min)
+                    {
+                        static const float EPS = 3e-7f;
+                        if (GET_ITEM(dx4, k) < minMin)
+                        {
+                            result.clear();
+                        }
+                        min = GET_ITEM(dx4, k);
+                        minMax = _mm_set1_ps(min + EPS);
+                        minMin = min - EPS;
+                    }
+                    result.push_back(4 * j + k);
+                }
             }
-            SetThreadPriority(params[j].thread, THREAD_PRIORITY_TIME_CRITICAL);
-            SetThreadAffinityMask(params[j].thread, 1 << j);
         }
-
-        for (int j = 0; j < NTHREADS; ++j)
-        {
-            WaitForSingleObject(params[j].thread, INFINITE);
-        }
-#else
-        for (size_t iThread = 0; iThread < NTHREADS; ++iThread)
-        {
-            Nop(&(params[iThread]));
-        }
-#endif
 
         result2.clear();
         long double mind = 1e15;
         long double mindMin = mind;
         long double mindMax = mind;
-        for (int iThread = 0; iThread < NTHREADS; ++iThread)
+        for (auto index : result)
         {
-            for (auto index : params[iThread].result)
+            int realindex = indexes[index];
+            long double dist = Sqr(xd - xcd[realindex]) + Sqr(yd - ycd[realindex]);
+            static const long double LDEPS = 1e-10;
+            if (dist < mindMin)
             {
-                int realindex = indexes[index];
-                long double dist = Sqr(xd - xcd[realindex]) + Sqr(yd - ycd[realindex]);
-                static const long double LDEPS = 1e-10;
-                if (dist < mindMin)
-                {
-                    mind = dist;
-                    mindMin = dist - LDEPS;
-                    mindMax = dist + LDEPS;
-                    result2.clear();
-                }
-                if (dist <= mindMax)
-                {
-                    result2.push_back(realindex);
-                }
+                mind = dist;
+                mindMin = dist - LDEPS;
+                mindMax = dist + LDEPS;
+                result2.clear();
+            }
+            if (dist <= mindMax)
+            {
+                result2.push_back(realindex);
             }
         }
         std::sort(result2.begin(), result2.end());
