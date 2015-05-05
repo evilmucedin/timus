@@ -1,4 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS
+#define _USE_MATH_DEFINES
 
 #ifdef __linux__
 #   include <x86intrin.h>
@@ -129,7 +130,7 @@ struct KDTree
         : _left(nullptr)
         , _right(nullptr)
     {
-        if (depth == 10)
+        if (depth == 9)
         {
             ConvertVector(x, &_x, &_len);
             ConvertVector(y, &_y, &_len);
@@ -295,10 +296,40 @@ struct KDTree
     }
 };
 
+void GenBig()
+{
+    FILE* fOut = fopen("big.txt", "w");
+    static const int N = 100000;
+    fprintf(fOut, "%d\n", N);
+    for (int i = 0; i < N; ++i)
+    {
+        long double ldi = i;
+        long double angle = ldi/N*2.0*M_PI;
+        static const long double R = 10000.0;
+        long double x = R*cos(angle);
+        long double y = R*sin(angle);
+        fprintf(fOut, "%Lf %Lf\n", x, y);
+    }
+    static const int M = 10000;
+    fprintf(fOut, "%d\n", M);
+    for (int i = 0; i < M; ++i)
+    {
+        long double ldi = i;
+        long double angle = ldi/M*2.0*M_PI;
+        static const long double R = 0.1;
+        long double x = R*cos(angle);
+        long double y = R*sin(angle);
+        fprintf(fOut, "%Lf %Lf\n", x, y);
+    }
+    fclose(fOut);
+}
+
 int main()
 {
 #ifndef ONLINE_JUDGE
-    freopen("input.txt", "r", stdin);
+    GenBig();
+    freopen("big.txt", "r", stdin);
+    // freopen("input.txt", "r", stdin);
 #endif
 
 #ifndef __linux__
@@ -363,26 +394,34 @@ int main()
         float minMin = minDist;
         kdTree->Solve(x, y, x4, y4, &minDist, &minMax, &minMin, &result);
 
-        result2.clear();
-        long double mind = 1e15;
-        long double mindMin = mind;
-        long double mindMax = mind;
-        for (auto realindex : result)
+        if (result.size() < 1000)
         {
-            long double dist = Sqr(xd - xcd[realindex]) + Sqr(yd - ycd[realindex]);
-            static const long double LDEPS = 1e-10;
-            if (dist < mindMin)
+            result2.clear();
+            long double mind = 1e15;
+            long double mindMin = mind;
+            long double mindMax = mind;
+            for (auto realindex : result)
             {
-                mind = dist;
-                mindMin = dist - LDEPS;
-                mindMax = dist + LDEPS;
-                result2.clear();
-            }
-            if (dist <= mindMax)
-            {
-                result2.push_back(realindex);
+                long double dist = Sqr(xd - xcd[realindex]) + Sqr(yd - ycd[realindex]);
+                static const long double LDEPS = 1e-10;
+                if (dist < mindMin)
+                {
+                    mind = dist;
+                    mindMin = dist - LDEPS;
+                    mindMax = dist + LDEPS;
+                    result2.clear();
+                }
+                if (dist <= mindMax)
+                {
+                    result2.push_back(realindex);
+                }
             }
         }
+        else
+        {
+            result2 = result;
+        }
+
         std::sort(result2.begin(), result2.end());
 
         Output(result2);
