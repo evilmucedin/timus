@@ -1,5 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS
-#define _USE_MATH_DEFINES
+#define M_PI       3.14159265358979323846
 
 #ifdef __linux__
 #   include <x86intrin.h>
@@ -60,12 +60,6 @@ void Output(const TIntVector& vct)
     fputs("\n", stdout);
 }
 
-#ifndef _MSC_VER
-#   define GET_ITEM(var, index) (var)[(index)]
-#else
-#   define GET_ITEM(var, index) (var).m128_f32[(index)]
-#endif
-
 template<typename T>
 T Max(T a, T b)
 {
@@ -78,36 +72,42 @@ T Min(T a, T b)
     return (a < b) ? a : b;
 }
 
-typedef vector<float> TFloats;
+union TVector
+{
+    __m128d v;
+    double d[2];
+};
 
-static const float INF = 1e4f;
+typedef vector<double> TDoubles;
 
-static void ConvertVector(const TFloats& floats, __m128** result, int* len)
+static const double INF = 1e4f;
+
+static void ConvertVector(const TDoubles& floats, TVector** result, int* len)
 {
     const int m = static_cast<int>(floats.size());
-    *len = m / 4;
-    if (m % 4)
+    *len = m / 2;
+    if (m % 2)
     {
         ++(*len);
     }
-    *result = (__m128*)_mm_malloc(sizeof(__m128)*(*len), 32);
+    *result = (TVector*)_mm_malloc(sizeof(TVector)*(*len), 32);
     for (int i = 0; i < *len; ++i)
     {
-        float values[] = { INF, INF, INF, INF };
-        for (int j = 0; j < 4; ++j)
+        double values[] = { INF, INF };
+        for (int j = 0; j < 2; ++j)
         {
-            if (4 * i + j < m)
+            if (2 * i + j < m)
             {
-                values[j] = floats[4 * i + j];
+                values[j] = floats[2 * i + j];
             }
         }
-        (*result)[i] = _mm_load_ps(values);
+        (*result)[i].v = _mm_load_pd(values);
     }
 }
 
-static float Median(const TFloats& floats)
+static double Median(const TDoubles& floats)
 {
-    TFloats temp(floats);
+    TDoubles temp(floats);
     std::sort(temp.begin(), temp.end());
     return temp[temp.size() / 2];
 }
@@ -115,18 +115,18 @@ static float Median(const TFloats& floats)
 struct KDTree
 {
     int _len;
-    __m128* _x;
-    __m128* _y;
+    TVector* _x;
+    TVector* _y;
     bool _isLeaf;
     KDTree* _left;
     KDTree* _right;
     TIntVector _indices;
-    float _minX;
-    float _maxX;
-    float _minY;
-    float _maxY;
+    double _minX;
+    double _maxX;
+    double _minY;
+    double _maxY;
 
-    KDTree(int depth, const TFloats& x, const TFloats& y, const TIntVector& indices)
+    KDTree(int depth, const TDoubles& x, const TDoubles& y, const TIntVector& indices)
         : _left(nullptr)
         , _right(nullptr)
     {
@@ -150,13 +150,13 @@ struct KDTree
         }
         else
         {
-            float separator = (depth & 1) ? Median(x) : Median(y);
+            double separator = (depth & 1) ? Median(x) : Median(y);
 
-            TFloats xLeft;
-            TFloats yLeft;
+            TDoubles xLeft;
+            TDoubles yLeft;
             TIntVector indicesLeft;
-            TFloats xRight;
-            TFloats yRight;
+            TDoubles xRight;
+            TDoubles yRight;
             TIntVector indicesRight;
 
             for (size_t i = 0; i < x.size(); ++i)
@@ -192,7 +192,7 @@ struct KDTree
 #ifndef _MSC_VER
     __attribute__((force_align_arg_pointer))
 #endif
-    void Solve(float x, float y, const __m128& x4, const __m128& y4, float* minDist, __m128* minMax, float* minMin, TIntVector* result) const
+    void Solve(double x, double y, const TVector& x2, const TVector& y2, double* minDist, TVector* minMax, double* minMin, TIntVector* result) const
     {
         if (_isLeaf)
         {
@@ -201,7 +201,7 @@ struct KDTree
                 return;
             }
 
-            float d;
+            double d;
             if (x < _minX)
             {
                 if (y < _minY)
@@ -253,31 +253,34 @@ struct KDTree
                 return;
             }
 
-            static const float EPS = 3e-7f;
+            static const double EPS = 1e-13;
             for (int j = 0; j < _len; ++j)
             {
-                __m128 dx4 = _mm_sub_ps(_x[j], x4);
-                dx4 = _mm_mul_ps(dx4, dx4);
-                __m128 dy4 = _mm_sub_ps(_y[j], y4);
-                dy4 = _mm_mul_ps(dy4, dy4);
-                dx4 = _mm_add_ps(dx4, dy4);
+                TVector dx2;
+                dx2.v = _mm_sub_pd(_x[j].v, x2.v);
+                dx2.v = _mm_mul_pd(dx2.v, dx2.v);
+                TVector dy2;
+                dy2.v = _mm_sub_pd(_y[j].v, y2.v);
+                dy2.v = _mm_mul_pd(dy2.v, dy2.v);
+                dx2.v = _mm_add_pd(dx2.v, dy2.v);
 
-                __m128 cmpMax = _mm_cmplt_ps(dx4, *minMax);
-                for (int k = 0; k < 4; ++k)
+                TVector cmpMax;
+                cmpMax.v = _mm_cmplt_pd(dx2.v, minMax->v);
+                for (int k = 0; k < 2; ++k)
                 {
-                    if (GET_ITEM(cmpMax, k))
+                    if (cmpMax.d[k])
                     {
-                        if (GET_ITEM(dx4, k) < *minDist)
+                        if (dx2.d[k] < *minDist)
                         {
-                            if (GET_ITEM(dx4, k) < *minMin)
+                            if (dx2.d[k] < *minMin)
                             {
                                 result->clear();
                             }
-                            *minDist = GET_ITEM(dx4, k);
-                            *minMax = _mm_set1_ps(*minDist + EPS);
+                            *minDist = dx2.d[k];
+                            minMax->v = _mm_set1_pd(*minDist + EPS);
                             *minMin = *minDist - EPS;
                         }
-                        result->push_back(_indices[4 * j + k]);
+                        result->push_back(_indices[2 * j + k]);
                     }
                 }
             }
@@ -286,11 +289,11 @@ struct KDTree
         {
             if (_left)
             {
-                _left->Solve(x, y, x4, y4, minDist, minMax, minMin, result);
+                _left->Solve(x, y, x2, y2, minDist, minMax, minMin, result);
             }
             if (_right)
             {
-                _right->Solve(x, y, x4, y4, minDist, minMax, minMin, result);
+                _right->Solve(x, y, x2, y2, minDist, minMax, minMin, result);
             }
         }
     }
@@ -327,7 +330,7 @@ void GenBig()
 int main()
 {
 #ifndef ONLINE_JUDGE
-    GenBig();
+    // GenBig();
     freopen("big.txt", "r", stdin);
     // freopen("input.txt", "r", stdin);
 #endif
@@ -343,7 +346,7 @@ int main()
 
     long double* xcd = (long double*)_mm_malloc(sizeof(long double)*size, 32);
     long double* ycd = (long double*)_mm_malloc(sizeof(long double)*size, 32);
-    long double mx = 0.001;
+    long double mx = 1.0;
     for (int i = 0; i < m; ++i)
     {
         scanf("%Lf%Lf", &xcd[i], &ycd[i]);
@@ -362,8 +365,8 @@ int main()
         swap(indices[i], indices[i + (rand() % (m - i))]);
     }
 
-    TFloats xc(m);
-    TFloats yc(m);
+    TDoubles xc(m);
+    TDoubles yc(m);
     for (int i = 0; i < m; ++i)
     {
         xc[i] = xcd[indices[i]] / mx;
@@ -383,18 +386,21 @@ int main()
         long double xd, yd;
         scanf("%Lf%Lf", &xd, &yd);
 
-        float x = xd/mx;
-        float y = yd/mx;
-        __m128 x4 = _mm_set1_ps(x);
-        __m128 y4 = _mm_set1_ps(y);
+        double x = xd/mx;
+        double y = yd/mx;
+        TVector x2;
+        x2.v = _mm_set1_pd(x);
+        TVector y2;
+        y2.v = _mm_set1_pd(y);
 
         result.clear();
-        float minDist = INF*INF;
-        __m128 minMax = _mm_set1_ps(minDist);
-        float minMin = minDist;
-        kdTree->Solve(x, y, x4, y4, &minDist, &minMax, &minMin, &result);
+        double minDist = 1e8;
+        TVector minMax;
+        minMax.v = _mm_set1_pd(minDist);
+        double minMin = minDist;
+        kdTree->Solve(x, y, x2, y2, &minDist, &minMax, &minMin, &result);
 
-        if (result.size() < 1000)
+        if (result.size() < 10)
         {
             result2.clear();
             long double mind = 1e15;
