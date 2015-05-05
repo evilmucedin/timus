@@ -71,6 +71,230 @@ T Max(T a, T b)
     return (a > b) ? a : b;
 }
 
+template<typename T>
+T Min(T a, T b)
+{
+    return (a < b) ? a : b;
+}
+
+typedef vector<float> TFloats;
+
+static const float INF = 1e4f;
+
+static void ConvertVector(const TFloats& floats, __m128** result, int* len)
+{
+    const int m = static_cast<int>(floats.size());
+    *len = m / 4;
+    if (m % 4)
+    {
+        ++(*len);
+    }
+    *result = (__m128*)_mm_malloc(sizeof(__m128)*(*len), 32);
+    for (int i = 0; i < *len; ++i)
+    {
+        float values[] = { INF, INF, INF, INF };
+        for (int j = 0; j < 4; ++j)
+        {
+            if (4 * i + j < m)
+            {
+                values[j] = floats[4 * i + j];
+            }
+        }
+        (*result)[i] = _mm_load_ps(values);
+    }
+}
+
+static float Median(const TFloats& floats)
+{
+    TFloats temp(floats);
+    std::sort(temp.begin(), temp.end());
+    return temp[temp.size() / 2];
+}
+
+struct KDTree
+{
+    int _len;
+    __m128* _x;
+    __m128* _y;
+    bool _isLeaf;
+    KDTree* _left;
+    KDTree* _right;
+    TIntVector _indices;
+    float _minX;
+    float _maxX;
+    float _minY;
+    float _maxY;
+
+    KDTree(int depth, const TFloats& x, const TFloats& y, const TIntVector& indices)
+        : _left(nullptr)
+        , _right(nullptr)
+    {
+        if (depth == 10)
+        {
+            ConvertVector(x, &_x, &_len);
+            ConvertVector(y, &_y, &_len);
+            _indices = indices;
+            _isLeaf = true;
+            _minX = INF;
+            _maxX = -INF;
+            _minY = INF;
+            _maxY = -INF;
+            for (size_t i = 0; i < x.size(); ++i)
+            {
+                _minX = Min(_minX, x[i]);
+                _maxX = Max(_maxX, x[i]);
+                _minY = Min(_minY, y[i]);
+                _maxY = Max(_maxY, y[i]);
+            }
+        }
+        else
+        {
+            float separator = (depth & 1) ? Median(x) : Median(y);
+
+            TFloats xLeft;
+            TFloats yLeft;
+            TIntVector indicesLeft;
+            TFloats xRight;
+            TFloats yRight;
+            TIntVector indicesRight;
+
+            for (size_t i = 0; i < x.size(); ++i)
+            {
+                bool toLeft = (depth & 1) ? (x[i] < separator) : (y[i] < separator);
+                if (toLeft)
+                {
+                    xLeft.push_back(x[i]);
+                    yLeft.push_back(y[i]);
+                    indicesLeft.push_back(indices[i]);
+                }
+                else
+                {
+                    xRight.push_back(x[i]);
+                    yRight.push_back(y[i]);
+                    indicesRight.push_back(indices[i]);
+                }
+            }
+
+            if (xLeft.size())
+            {
+                _left = new KDTree(depth + 1, xLeft, yLeft, indicesLeft);
+            }
+            if (xRight.size())
+            {
+                _right = new KDTree(depth + 1, xRight, yRight, indicesRight);
+            }
+
+            _isLeaf = false;
+        }
+    }
+
+#ifndef _MSC_VER
+    __attribute__((force_align_arg_pointer))
+#endif
+    void Solve(float x, float y, const __m128& x4, const __m128& y4, float* minDist, __m128* minMax, float* minMin, TIntVector* result) const
+    {
+        if (_isLeaf)
+        {
+            if (!_len)
+            {
+                return;
+            }
+
+            float d;
+            if (x < _minX)
+            {
+                if (y < _minY)
+                {
+                    d = Min(_minX - x, _minY - y);
+                }
+                else if (y > _maxY)
+                {
+                    d = Min(_minX - x, y - _maxY);
+                }
+                else
+                {
+                    d = _minX - x;
+                }
+            }
+            else if (x > _maxX)
+            {
+                if (y < _minY)
+                {
+                    d = Min(x - _maxX, _minY - y);
+                }
+                else if (y > _maxY)
+                {
+                    d = Min(x - _maxX, y - _maxY);
+                }
+                else
+                {
+                    d = x - _maxX;
+                }
+            }
+            else
+            {
+                if (y < _minY)
+                {
+                    d = _minY - y;
+                }
+                else if (y > _maxY)
+                {
+                    d = y - _maxY;
+                }
+                else
+                {
+                    d = 0;
+                }
+            }
+
+            if (d*d > *minDist)
+            {
+                return;
+            }
+
+            static const float EPS = 3e-7f;
+            for (int j = 0; j < _len; ++j)
+            {
+                __m128 dx4 = _mm_sub_ps(_x[j], x4);
+                dx4 = _mm_mul_ps(dx4, dx4);
+                __m128 dy4 = _mm_sub_ps(_y[j], y4);
+                dy4 = _mm_mul_ps(dy4, dy4);
+                dx4 = _mm_add_ps(dx4, dy4);
+
+                __m128 cmpMax = _mm_cmplt_ps(dx4, *minMax);
+                for (int k = 0; k < 4; ++k)
+                {
+                    if (GET_ITEM(cmpMax, k))
+                    {
+                        if (GET_ITEM(dx4, k) < *minDist)
+                        {
+                            if (GET_ITEM(dx4, k) < *minMin)
+                            {
+                                result->clear();
+                            }
+                            *minDist = GET_ITEM(dx4, k);
+                            *minMax = _mm_set1_ps(*minDist + EPS);
+                            *minMin = *minDist - EPS;
+                        }
+                        result->push_back(_indices[4 * j + k]);
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (_left)
+            {
+                _left->Solve(x, y, x4, y4, minDist, minMax, minMin, result);
+            }
+            if (_right)
+            {
+                _right->Solve(x, y, x4, y4, minDist, minMax, minMin, result);
+            }
+        }
+    }
+};
+
 int main()
 {
 #ifndef ONLINE_JUDGE
@@ -96,38 +320,26 @@ int main()
         mx = Max(mx, abs(ycd[i]));
     }
 
-    int* indexes = new int[size];
-    for (int i = 0; i < size; ++i)
+    TIntVector indices(m);
+    for (int i = 0; i < m; ++i)
     {
-        indexes[i] = i;
+        indices[i] = i;
     }
 
     for (int i = 0; i < m; ++i)
     {
-        swap(indexes[i], indexes[i + (rand() % (m - i))]);
+        swap(indices[i], indices[i + (rand() % (m - i))]);
     }
 
-    float* xc = (float*)_mm_malloc(sizeof(float)*size, 32);
-    float* yc = (float*)_mm_malloc(sizeof(float)*size, 32);
-    for (int i = 0; i < size; ++i)
-    {
-        xc[i] = 1e5f;
-        yc[i] = 1e5f;
-    }
+    TFloats xc(m);
+    TFloats yc(m);
     for (int i = 0; i < m; ++i)
     {
-        xc[i] = xcd[indexes[i]]/mx;
-        yc[i] = ycd[indexes[i]]/mx;
+        xc[i] = xcd[indices[i]] / mx;
+        yc[i] = ycd[indices[i]] / mx;
     }
 
-    const int mLen = m / 4 + 1;
-    __m128* xc4 = (__m128*)_mm_malloc(sizeof(__m128)*(mLen), 32);
-    __m128* yc4 = (__m128*)_mm_malloc(sizeof(__m128)*(mLen), 32);
-    for (int i = 0; i < mLen; ++i)
-    {
-        xc4[i] = _mm_load_ps(xc + 4*i);
-        yc4[i] = _mm_load_ps(yc + 4*i);
-    }
+    KDTree* kdTree = new KDTree(0, xc, yc, indices);
 
     int n;
     scanf("%d", &n);
@@ -140,54 +352,23 @@ int main()
         long double xd, yd;
         scanf("%Lf%Lf", &xd, &yd);
 
-        float x, y;
-        x = xd/mx;
-        y = yd/mx;
+        float x = xd/mx;
+        float y = yd/mx;
         __m128 x4 = _mm_set1_ps(x);
         __m128 y4 = _mm_set1_ps(y);
 
-        static const float INF = 1e16f;
-        float min = INF;
-        __m128 minMax = _mm_set1_ps(INF);
-        float minMin = INF;
-
         result.clear();
-        for (int j = 0; j < mLen; ++j)
-        {
-            __m128 dx4 = _mm_sub_ps(xc4[j], x4);
-            dx4 = _mm_mul_ps(dx4, dx4);
-            __m128 dy4 = _mm_sub_ps(yc4[j], y4);
-            dy4 = _mm_mul_ps(dy4, dy4);
-            dx4 = _mm_add_ps(dx4, dy4);
-
-            __m128 cmpMax = _mm_cmplt_ps(dx4, minMax);
-            for (int k = 0; k < 4; ++k)
-            {
-                if (GET_ITEM(cmpMax, k))
-                {
-                    if (GET_ITEM(dx4, k) < min)
-                    {
-                        static const float EPS = 3e-7f;
-                        if (GET_ITEM(dx4, k) < minMin)
-                        {
-                            result.clear();
-                        }
-                        min = GET_ITEM(dx4, k);
-                        minMax = _mm_set1_ps(min + EPS);
-                        minMin = min - EPS;
-                    }
-                    result.push_back(4 * j + k);
-                }
-            }
-        }
+        float minDist = INF*INF;
+        __m128 minMax = _mm_set1_ps(minDist);
+        float minMin = minDist;
+        kdTree->Solve(x, y, x4, y4, &minDist, &minMax, &minMin, &result);
 
         result2.clear();
         long double mind = 1e15;
         long double mindMin = mind;
         long double mindMax = mind;
-        for (auto index : result)
+        for (auto realindex : result)
         {
-            int realindex = indexes[index];
             long double dist = Sqr(xd - xcd[realindex]) + Sqr(yd - ycd[realindex]);
             static const long double LDEPS = 1e-10;
             if (dist < mindMin)
