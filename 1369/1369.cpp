@@ -457,6 +457,7 @@ struct CircleTree
         }
     }
 };
+
 void GenBig()
 {
     FILE* fOut = fopen("big.txt", "w");

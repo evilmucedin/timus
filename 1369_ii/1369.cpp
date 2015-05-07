@@ -967,11 +967,11 @@ struct THalfEdge* TVoronoi::get_edge_above_x(const TPoint& p)
 	//
 	if( he == beachline_start || (he != beachline_end && he->rightof(p)) )
 	{
-		do {
-			
+		do
+        {			
             he = he->right;
 		}
-		while( he != beachline_end && he->rightof(p) );
+		while (he != beachline_end && he->rightof(p));
 
 		he = he->left;
 	}
@@ -981,7 +981,7 @@ struct THalfEdge* TVoronoi::get_edge_above_x(const TPoint& p)
         {
 			he = he->left;
 		}
-		while( he != beachline_start && !he->rightof(p) );
+		while (he != beachline_start && !he->rightof(p));
 	}
 
 	return he;
@@ -1066,12 +1066,33 @@ void GenBig()
     fclose(fOut);
 }
 
+void GenInt()
+{
+    FILE* fOut = fopen("int.txt", "w");
+    static const int N = 10000;
+    fprintf(fOut, "%d\n", N);
+    for (int i = 0; i < N; ++i)
+    {
+        fprintf(fOut, "%d %d\n", rand() % 10, rand() % 10);
+    }
+    static const int M = 10000;
+    fprintf(fOut, "%d\n", M);
+    for (int i = 0; i < M; ++i)
+    {
+        fprintf(fOut, "%Lf %Lf\n", rand() % 10, rand() % 10);
+    }
+    fclose(fOut);
+}
+
 int main()
 {
 #ifndef ONLINE_JUDGE
-    // GenBig();
-    // freopen("big.txt", "r", stdin);
-    freopen("input.txt", "r", stdin);
+    GenBig();
+    freopen("big.txt", "r", stdin);
+    // freopen("input.txt", "r", stdin);
+    // freopen("small.txt", "r", stdin);
+    // GenInt();
+    // freopen("int.txt", "r", stdin);
 #endif
 
     int m;
@@ -1116,8 +1137,11 @@ int main()
     }
 
     TVoronoi v;
-    v.generate(points.size(), &points[0], 100, 100);
-   
+    if (points.size() > 10)
+    {
+        v.generate(points.size(), &points[0], 100, 100);
+    }
+
     int n;
     scanf("%d", &n);
     vector<int> result;
@@ -1142,8 +1166,9 @@ int main()
         long double mind = 1e15;
         long double mindMin = mind;
         long double mindMax = mind;
-        for (auto realindex : result)
+        for (int j = 0; j < result.size(); ++j)
         {
+            int realindex = result[j];
             long double dist = Sqr(xd - xcd[realindex]) + Sqr(yd - ycd[realindex]);
             static const long double LDEPS = 1e-10;
             if (dist < mindMin)
