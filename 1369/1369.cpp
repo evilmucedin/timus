@@ -271,7 +271,7 @@ struct KDTree
                     if (cmpMax.d[k])
                     {
                         if (dx2.d[k] < *minDist)
-                        {
+                        {       
                             if (dx2.d[k] < *minMin)
                             {
                                 result->clear();
