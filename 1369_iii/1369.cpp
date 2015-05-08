@@ -308,42 +308,44 @@ static const TCoverNum INF = 1e6f;
 bool CoverTree::InsertRec(const CoverTreePoint& p, const std::vector<TDistNodePair>& Qi, const int& level)
 {
     std::vector<std::pair<TCoverNum, CoverTreeNode*> > Qj;
-    TCoverNum sep = pow(base,level);
+    TCoverNum sep = pow(base, level);
     double minDist = INF;
     std::pair<double, CoverTreeNode*> minQiDist(minDist, nullptr);
-    for(std::vector< std::pair<TCoverNum, CoverTreeNode*> >::const_iterator it=Qi.begin(); it!=Qi.end(); ++it)
+    for(std::vector< std::pair<TCoverNum, CoverTreeNode*> >::const_iterator it = Qi.begin(); it != Qi.end(); ++it)
     {
-        if(it->first<minQiDist.first) minQiDist = *it;
-        if(it->first<minDist) minDist=it->first;
-        if(it->first<=sep) Qj.push_back(*it);
+        if(it->first < minQiDist.first)
+            minQiDist = *it;
+        if(it->first<minDist)
+            minDist = it->first;
+        if(it->first <= sep)
+            Qj.push_back(*it);
         CoverTreeNodes children = it->second->GetChildren(level);
-        for(CoverTreeNodes::const_iterator it2=children.begin();it2!=children.end();++it2)
+        for(CoverTreeNodes::const_iterator it2 = children.begin(); it2 != children.end(); ++it2)
         {
             double d = p.Distance((*it2)->GetPoint());
-            if (d<minDist)
+            if (d < minDist)
             {
                 minDist = d;
             }
-            if (d<=sep)
+            if (d <= sep)
             {
                 Qj.push_back(make_pair(d,*it2));
             }
         }
     }
-    //std::cout << "level: " << level << ", sep: " << sep << ", dist: " << minQDist.first << "\n";
-    if(minDist > sep)
+    if (minDist > sep)
     {
         return true;
     }
     else
     {
-        bool found = InsertRec(p,Qj,level-1);
+        bool found = InsertRec(p, Qj, level-1);
         //distNodePair minQiDist = distance(p,Qi);
         if (found && minQiDist.first <= sep)
         {
-            if(level < _minLevel + 1) 
+            if (level < _minLevel + 1) 
             {
-                _minLevel=level-1;
+                _minLevel = level-1;
             }
             minQiDist.second->AddChild(level, new CoverTreeNode(p));
             ++_numNodes;
