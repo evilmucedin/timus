@@ -407,6 +407,10 @@ struct Triangle {
 typedef vector<Point> Points;
 typedef vector<DPoint> DPoints;
 
+vector<Integers> graph;
+vector<bool> used;
+queue<int> qu;
+
 struct DelaunayTriangulation {
     int _firstP;
     int _lastP;
@@ -420,8 +424,11 @@ struct DelaunayTriangulation {
     vector<PTriangle> _triangles;
     int _modCount;
     int _trianglesModCount;
+    Integers _indices;
+    Integers _temp;
 
-    DelaunayTriangulation(const Integers& points)
+    template<typename It>
+    DelaunayTriangulation(It begin, It end)
         : _nPoints(0)
         , _modCount(0)
         , _trianglesModCount(0)
@@ -429,8 +436,8 @@ struct DelaunayTriangulation {
         _modCount = 0;
         _trianglesModCount = 0;
         _allCollinear = true;
-        for (int i = 0; i < points.size(); ++i) {
-            insertPoint(points[i]);
+        for (It point = begin; point != end; ++point) {
+            insertPoint(*point);
         }
     }
 
@@ -444,6 +451,7 @@ struct DelaunayTriangulation {
     }
 
     void insertPoint(int p) {
+        _indices.push_back(p);
         ++_modCount;
         PTriangle t = insertPointSimple(p);
         if (t == nullptr) {
@@ -834,6 +842,88 @@ struct DelaunayTriangulation {
             }
         }
     }
+
+    void updateGraph() {
+        trianglesIterator();
+        for (size_t i = 0; i < _triangles.size(); ++i)
+        {
+            PTriangle t = _triangles[i];
+            if (t->_a >= 0 && t->_b >= 0) {
+                graph[t->p1().index()].push_back(t->p2().index());
+                graph[t->p2().index()].push_back(t->p1().index());
+            }
+
+            if (t->_a >= 0 && t->_c >= 0) {
+                graph[t->p1().index()].push_back(t->p3().index());
+                graph[t->p3().index()].push_back(t->p1().index());
+            }
+
+            if (t->_b >= 0 && t->_c >= 0) {
+                graph[t->p2().index()].push_back(t->p3().index());
+                graph[t->p3().index()].push_back(t->p2().index());
+            }
+        }
+    }
+
+    void query(const Point& q, TBase& min, Integers* result) {
+        bool fallback = false;
+        if (_nPoints > 5) {
+            _temp.clear();
+            PTriangle t = find(&q);
+            if (nullptr != t) {
+                if (t->_a >= 0) {
+                    _temp.push_back(t->p1().index());
+                }
+                if (t->_b >= 0) {
+                    _temp.push_back(t->p2().index());
+                }
+                if (t->_c >= 0) {
+                    _temp.push_back(t->p3().index());
+                }
+
+                for (int k = 0; k < _temp.size(); ++k) {
+                    qu.push(_temp[k]);
+                    used[_temp[k]] = true;
+                }
+                while (!qu.empty()) {
+                    int index = qu.front();
+                    qu.pop();
+                    TBase dist = gPoints[index].distance2(q);
+                    if (dist < min + 1e-9) {
+                        if (dist < min) {
+                            if (dist + 1e-9 < min) {
+                            }
+                            min = dist;
+                        }
+                        result->push_back(index);
+                        for (size_t k = 0; k < graph[index].size(); ++k) {
+                            int v = graph[index][k];
+                            if (!used[v]) {
+                                _temp.push_back(v);
+                                used[v] = true;
+                                qu.push(v);
+                            }
+                        }
+                    }
+                }
+                for (int k = 0; k < _temp.size(); ++k) {
+                    used[_temp[k]] = false;
+                }
+            }
+            else {
+                fallback = true;
+            }
+        }
+        else {
+            fallback = true;
+        }
+        
+        if (fallback) {
+            for (int j = 0; j < _indices.size(); ++j) {
+                result->push_back(_indices[j]);
+            }
+        }
+    }
 };
 
 void GenBig()
@@ -852,8 +942,7 @@ void GenBig()
     }
     static const int M = 10000;
     fprintf(fOut, "%d\n", M);
-    for (int i = 0; i < M; ++i)
-    {
+    for (int i = 0; i < M; ++i) {
         long double ldi = i;
         long double angle = ldi / M*2.0*M_PI;
         static const long double R = 0.1;
@@ -905,119 +994,50 @@ int main() {
         indices[i] = i;
     }
 
-    for (int i = 0; i < m; ++i)
-    {
+    for (int i = 0; i < m; ++i) {
         swap(indices[i], indices[i + (rand() % (m - i))]);
     }
-    if (m > 40000)
-        indices.erase(indices.begin() + 40000, indices.end());
 
     gPoints = points;
-    DelaunayTriangulation dt(indices);
-
-    vector<vector<int>> graph(m, vector<int>());
-    dt.trianglesIterator();
-    for (size_t i = 0; i < dt._triangles.size(); ++i)
-    {
-        PTriangle t = dt._triangles[i];
-        if (t->_a >= 0 && t->_b >= 0) {
-            graph[t->p1().index()].push_back(t->p2().index());
-            graph[t->p2().index()].push_back(t->p1().index());
+    graph.resize(m, vector<int>());
+    used.resize(m);
+    vector<DelaunayTriangulation*> dts;
+    int begin = 0;
+    while (begin < m) {
+        int end = begin + 2000;
+        if (end > m) {
+            end = m;
         }
-
-        if (t->_a >= 0 && t->_c >= 0) {
-            graph[t->p1().index()].push_back(t->p3().index());
-            graph[t->p3().index()].push_back(t->p1().index());
-        }
-
-        if (t->_b >= 0 && t->_c >= 0) {
-            graph[t->p2().index()].push_back(t->p3().index());
-            graph[t->p3().index()].push_back(t->p2().index());
-        }
+        dts.push_back(new DelaunayTriangulation(indices.begin() + begin, indices.begin() + end));
+        dts.back()->updateGraph();
+        begin = end;
     }
 
     int n;
     scanf("%d", &n);
-    vector<bool> used(m);
     Integers result;
-    queue<int> qu;
+    Integers dindices;
 
-    if (m > 10000)
-        return 0;
-    
     for (int i = 0; i < n; ++i) {        
-        indices.clear();
-
         long double x;
         long double y;
         scanf("%Lf%Lf", &x, &y);
         Point q(x, y, -1);
         DPoint dq(x, y);
 
-        bool fallback = false;
-        if (m > 5) {
-            PTriangle t = dt.find(&q);
-            if (nullptr != t) {
-                if (t->_a >= 0) {
-                    indices.push_back(t->p1().index());
-                }
-                if (t->_b >= 0) {
-                    indices.push_back(t->p2().index());
-                }
-                if (t->_c >= 0) {
-                    indices.push_back(t->p3().index());
-                }
-
-                for (int k = 0; k < indices.size(); ++k) {
-                    qu.push(indices[k]);
-                    used[indices[k]] = true;
-                }
-                TBase min = INF;
-                while (!qu.empty()) {
-                    int index = qu.front();
-                    qu.pop();
-                    double dist = points[index].distance2(q);
-                    if (dist < min + 1e-9) {
-                        if (dist < min) {
-                            min = dist;
-                        }
-                        for (size_t k = 0; k < graph[index].size(); ++k) {
-                            int v = graph[index][k];
-                            if (!used[v]) {
-                                indices.push_back(v);
-                                used[v] = true;
-                                qu.push(v);
-                            }
-                        }
-                    }
-                }
-                for (int k = 0; k < indices.size(); ++k) {
-                    used[indices[k]] = false;
-                }
-            }
-            else {
-                fallback = true;
-            }
+        dindices.clear();
+        TBase mind = INF;
+        for (int k = 0; k < dts.size(); ++k) {
+            dts[k]->query(q, mind, &dindices);
         }
-        else {
-            fallback = true;
-        }
-        if (fallback) {
-            indices.resize(m);
-            for (int j = 0; j < m; ++j) {
-                indices[j] = j;
-            }
-        }
-        else {
-            sort(indices.begin(), indices.end());
-        }
+        sort(dindices.begin(), dindices.end());
 
         // BigDecimal min = new BigDecimal(1e12);
         result.clear();
         long double min = 1e12;
         int prevIndex = -1;
-        for (int k = 0; k < indices.size(); ++k) {
-            int index = indices[k];
+        for (int k = 0; k < dindices.size(); ++k) {
+            int index = dindices[k];
             if (index > prevIndex) {
                 long double d = points[index].distance2(q);
                 // int cmp = d.compareTo(min);
