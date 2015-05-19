@@ -293,7 +293,7 @@ void TEdge::create(TSite* s1, TSite* s2)
 	// Simplify it, using dx and dy
 	e->c = dx * (s1->p.x + dx * double(0.5)) + dy * (s1->p.y + dy * double(0.5));
 
-	if(abs(dx) > abs(dy))
+	if (abs(dx) > abs(dy))
 	{
 		e->a = double(1);
 		e->b = dy / dx;
@@ -967,11 +967,11 @@ struct THalfEdge* TVoronoi::get_edge_above_x(const TPoint& p)
 	//
 	if( he == beachline_start || (he != beachline_end && he->rightof(p)) )
 	{
-		do
-        {			
+		do {
+			
             he = he->right;
 		}
-		while (he != beachline_end && he->rightof(p));
+		while( he != beachline_end && he->rightof(p) );
 
 		he = he->left;
 	}
@@ -981,7 +981,7 @@ struct THalfEdge* TVoronoi::get_edge_above_x(const TPoint& p)
         {
 			he = he->left;
 		}
-		while (he != beachline_start && !he->rightof(p));
+		while( he != beachline_start && !he->rightof(p) );
 	}
 
 	return he;
@@ -1066,20 +1066,20 @@ void GenBig()
     fclose(fOut);
 }
 
-void GenInt()
+void GenRandom()
 {
-    FILE* fOut = fopen("int.txt", "w");
-    static const int N = 10000;
+    FILE* fOut = fopen("random.txt", "w");
+    static const int N = 100000;
     fprintf(fOut, "%d\n", N);
     for (int i = 0; i < N; ++i)
     {
-        fprintf(fOut, "%d %d\n", rand() % 10, rand() % 10);
+        fprintf(fOut, "%lf %lf\n", (rand() % 1000000)/1000000, (rand() % 1000000)/1000000);
     }
     static const int M = 10000;
     fprintf(fOut, "%d\n", M);
     for (int i = 0; i < M; ++i)
     {
-        fprintf(fOut, "%Lf %Lf\n", rand() % 10, rand() % 10);
+        fprintf(fOut, "%lf %lf\n", (rand() % 1000000)/1000000, (rand() % 1000000)/1000000);
     }
     fclose(fOut);
 }
@@ -1087,12 +1087,11 @@ void GenInt()
 int main()
 {
 #ifndef ONLINE_JUDGE
-    GenBig();
-    freopen("big.txt", "r", stdin);
+    // GenBig();
+    // freopen("big.txt", "r", stdin);
+    GenRandom();
+    freopen("random.txt", "r", stdin);
     // freopen("input.txt", "r", stdin);
-    // freopen("small.txt", "r", stdin);
-    // GenInt();
-    // freopen("int.txt", "r", stdin);
 #endif
 
     int m;
@@ -1137,11 +1136,8 @@ int main()
     }
 
     TVoronoi v;
-    if (points.size() > 10)
-    {
-        v.generate(points.size(), &points[0], 100, 100);
-    }
-
+    v.generate(points.size(), &points[0], 100, 100);
+   
     int n;
     scanf("%d", &n);
     vector<int> result;
@@ -1166,9 +1162,8 @@ int main()
         long double mind = 1e15;
         long double mindMin = mind;
         long double mindMax = mind;
-        for (int j = 0; j < result.size(); ++j)
+        for (auto realindex : result)
         {
-            int realindex = result[j];
             long double dist = Sqr(xd - xcd[realindex]) + Sqr(yd - ycd[realindex]);
             static const long double LDEPS = 1e-10;
             if (dist < mindMin)

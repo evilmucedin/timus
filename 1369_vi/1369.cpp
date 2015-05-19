@@ -737,9 +737,9 @@ void circle_cent4(TBase r1, TBase c1, TBase r2, TBase c2, TBase r3, TBase c3, TB
     else
         rd = (v6 - c*v5) / v4;
 
-    ro2 = (float)((rd - r1)*(rd - r1) + (cd - c1)*(cd - c1));
-    r = (float)rd;
-    c = (float)cd;
+    ro2 = (TBase)((rd - r1)*(rd - r1) + (cd - c1)*(cd - c1));
+    r = (TBase)rd;
+    c = (TBase)cd;
 }
 
 /*

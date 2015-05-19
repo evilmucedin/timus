@@ -1,5 +1,8 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS
 
+#include <immintrin.h>
+#include <intrin.h>
+
 #include <cstdio>
 #include <cmath>
 
@@ -81,7 +84,6 @@ struct DPoint {
     long double distance2(const DPoint& p) const {
         return Sqr(p._x - _x) + Sqr(p._y - _y);
     }
-
 };
 
 typedef double TBase;
@@ -90,6 +92,7 @@ struct Point {
     TBase _x;
     TBase _y;
     int _index;
+
     static const int ONSEGMENT = 0;
     static const int LEFT = 1;
     static const int RIGHT = 2;
@@ -112,6 +115,13 @@ struct Point {
         _x = p._x;
         _y = p._y;
         _index = p._index;
+    }
+
+    Point& operator=(const Point& p) {
+        _x = p._x;
+        _y = p._y;
+        _index = p._index;
+        return *this;
     }
 
     TBase x() const {
@@ -379,7 +389,9 @@ struct Triangle {
     }
 
     void cacheCircumCircle() {
-        _circle = circumCircleRaw();
+        if (_c >= 0) {
+            _circle = circumCircleRaw();
+        }
     }
 
     bool circumcircleContains(const Point& p) const {
@@ -867,7 +879,7 @@ struct DelaunayTriangulation {
 
     void query(const Point& q, TBase& min, Integers* result) {
         bool fallback = false;
-        if (_nPoints > 5) {
+        if (_nPoints > 2) {
             _temp.clear();
             PTriangle t = find(&q);
             if (nullptr != t) {
@@ -885,16 +897,19 @@ struct DelaunayTriangulation {
                     qu.push(_temp[k]);
                     used[_temp[k]] = true;
                 }
+                TBase lmin = 1e9;
                 while (!qu.empty()) {
                     int index = qu.front();
                     qu.pop();
                     TBase dist = gPoints[index].distance2(q);
-                    if (dist < min + 1e-9) {
+                    if (dist <= lmin) {
                         if (dist < min) {
                             if (dist + 1e-9 < min) {
+                                result->clear();
                             }
                             min = dist;
                         }
+                        lmin = dist;
                         result->push_back(index);
                         for (size_t k = 0; k < graph[index].size(); ++k) {
                             int v = graph[index][k];
