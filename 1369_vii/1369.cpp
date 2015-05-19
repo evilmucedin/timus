@@ -229,7 +229,6 @@ public:
     void DebugPrint();
 
 private:
-
     /// Triangle points
     Point* points_[3];
     /// Neighbor list
@@ -392,7 +391,7 @@ void Triangle::MarkNeighbor(Triangle& t)
 void Triangle::Clear()
 {
     Triangle *t;
-    for (int i = 0; i<3; i++)
+    for (int i = 0; i < 3; ++i)
     {
         t = neighbors_[i];
         if (t != NULL)
@@ -434,7 +433,7 @@ void Triangle::ClearDelunayEdges()
 
 Point* Triangle::OppositePoint(Triangle& t, const Point& p)
 {
-    Point *cw = t.PointCW(p);
+    Point* cw = t.PointCW(p);
     return PointCW(*cw);
 }
 
@@ -762,13 +761,11 @@ struct Node {
     Node(Point& p, Triangle& t) : point(&p), triangle(&t), next(NULL), prev(NULL), value(p.x)
     {
     }
-
 };
 
 // Advancing front
 class AdvancingFront {
 public:
-
     AdvancingFront(Node& head, Node& tail);
     // Destructor
     ~AdvancingFront();
@@ -786,9 +783,7 @@ public:
     Node* LocatePoint(const Point* point);
 
 private:
-
     Node* head_, *tail_, *search_node_;
-
     Node* FindSearchNode(double x);
 };
 
@@ -928,7 +923,7 @@ public:
 
     void RemoveNode(Node* node);
 
-    void CreateAdvancingFront(const std::vector<Node*>& nodes);
+    void CreateAdvancingFront();
 
     /// Try to map a node to all sides of this triangle that don't have a neighbor
     void MapTriangleToNodes(Triangle& t);
@@ -988,7 +983,6 @@ public:
     EdgeEvent edge_event;
 
 private:
-
     friend class Sweep;
 
     std::vector<Triangle*> triangles_;
@@ -1006,7 +1000,6 @@ private:
 
     void InitTriangulation();
     void InitEdges(const std::vector<Point*>& polyline);
-
 };
 
 inline AdvancingFront* SweepContext::front() const
@@ -1098,7 +1091,6 @@ void SweepContext::InitTriangulation()
 
     // Sort points along y-axis
     std::sort(points_.begin(), points_.end(), cmp);
-
 }
 
 void SweepContext::InitEdges(const std::vector<Point*>& polyline)
@@ -1128,10 +1120,8 @@ Node& SweepContext::LocateNode(const Point& point)
     return *front_->LocateNode(point.x);
 }
 
-void SweepContext::CreateAdvancingFront(const std::vector<Node*>& nodes)
+void SweepContext::CreateAdvancingFront()
 {
-
-    (void)nodes;
     // Initial triangle
     Triangle* triangle = new Triangle(*points_[0], *tail_, *head_);
 
@@ -1160,8 +1150,9 @@ void SweepContext::MapTriangleToNodes(Triangle& t)
     for (int i = 0; i < 3; i++) {
         if (!t.GetNeighbor(i)) {
             Node* n = front_->LocatePoint(t.PointCW(*t.GetPoint(i)));
-            if (n)
+            if (n) {
                 n->triangle = &t;
+            }
         }
     }
 }
@@ -1193,7 +1184,6 @@ void SweepContext::MeshClean(Triangle& triangle)
 
 SweepContext::~SweepContext()
 {
-
     // Clean up memory
 
     delete head_;
@@ -1213,7 +1203,6 @@ SweepContext::~SweepContext()
     for (unsigned int i = 0; i < edge_list.size(); i++) {
         delete edge_list[i];
     }
-
 }
 
 class Sweep
@@ -1375,15 +1364,13 @@ private:
     void FinalizationPolygon(SweepContext& tcx);
 
     std::vector<Node*> nodes_;
-
 };
-
 
 // Triangulate simple polygon with holes
 void Sweep::Triangulate(SweepContext& tcx)
 {
     tcx.InitTriangulation();
-    tcx.CreateAdvancingFront(nodes_);
+    tcx.CreateAdvancingFront();
     // Sweep points; build mesh
     SweepPoints(tcx);
     // Clean up
@@ -1392,11 +1379,11 @@ void Sweep::Triangulate(SweepContext& tcx)
 
 void Sweep::SweepPoints(SweepContext& tcx)
 {
-    for (size_t i = 1; i < tcx.point_count(); i++) {
+    for (size_t i = 1; i < tcx.point_count(); ++i) {
         Point& point = *tcx.GetPoint(i);
         Node* node = &PointEvent(tcx, point);
-        for (unsigned int i = 0; i < point.edge_list.size(); i++) {
-            EdgeEvent(tcx, point.edge_list[i], node);
+        for (unsigned int j = 0; j < point.edge_list.size(); ++j) {
+            EdgeEvent(tcx, point.edge_list[j], node);
         }
     }
 }
@@ -1465,7 +1452,7 @@ void Sweep::EdgeEvent(SweepContext& tcx, Point& ep, Point& eq, Triangle* triangl
             EdgeEvent(tcx, ep, *p1, triangle, *p1);
         }
         else {
-            std::runtime_error("EdgeEvent - collinear points not supported");
+            throw std::runtime_error("EdgeEvent - collinear points not supported");
             assert(0);
         }
         return;
@@ -1483,7 +1470,7 @@ void Sweep::EdgeEvent(SweepContext& tcx, Point& ep, Point& eq, Triangle* triangl
             EdgeEvent(tcx, ep, *p2, triangle, *p2);
         }
         else {
-            std::runtime_error("EdgeEvent - collinear points not supported");
+            throw std::runtime_error("EdgeEvent - collinear points not supported");
             assert(0);
         }
         return;
@@ -1492,13 +1479,16 @@ void Sweep::EdgeEvent(SweepContext& tcx, Point& ep, Point& eq, Triangle* triangl
     if (o1 == o2) {
         // Need to decide if we are rotating CW or CCW to get to a triangle
         // that will cross edge
+        Triangle* nextT;
         if (o1 == CW) {
-            triangle = triangle->NeighborCCW(point);
+            nextT = triangle->NeighborCCW(point);
         }
-        else{
-            triangle = triangle->NeighborCW(point);
+        else if (o1 == CCW) {
+            nextT = triangle->NeighborCW(point);
         }
-        EdgeEvent(tcx, ep, eq, triangle, point);
+        if (nextT) {
+            EdgeEvent(tcx, ep, eq, nextT, point);
+        }
     }
     else {
         // This triangle crosses constraint so lets flippin start!
@@ -1562,18 +1552,17 @@ void Sweep::Fill(SweepContext& tcx, Node& node)
     if (!Legalize(tcx, *triangle)) {
         tcx.MapTriangleToNodes(*triangle);
     }
-
 }
 
 void Sweep::FillAdvancingFront(SweepContext& tcx, Node& n)
 {
-
     // Fill right holes
     Node* node = n.next;
 
     while (node->next) {
         // if HoleAngle exceeds 90 degrees then break.
-        if (LargeHole_DontFill(node)) break;
+        if (LargeHole_DontFill(node))
+            break;
         Fill(tcx, *node);
         node = node->next;
     }
@@ -1583,7 +1572,8 @@ void Sweep::FillAdvancingFront(SweepContext& tcx, Node& n)
 
     while (node->prev) {
         // if HoleAngle exceeds 90 degrees then break.
-        if (LargeHole_DontFill(node)) break;
+        if (LargeHole_DontFill(node))
+            break;
         Fill(tcx, *node);
         node = node->prev;
     }
@@ -1599,7 +1589,6 @@ void Sweep::FillAdvancingFront(SweepContext& tcx, Node& n)
 
 // True if HoleAngle exceeds 90 degrees.
 bool Sweep::LargeHole_DontFill(const Node* node) const {
-
     const Node* nextNode = node->next;
     const Node* prevNode = node->prev;
     if (!AngleExceeds90Degrees(node->point, nextNode->point, prevNode->point))
@@ -2085,8 +2074,7 @@ void Sweep::FlipEdgeEvent(SweepContext& tcx, Point& ep, Point& eq, Triangle* t, 
             t = &NextFlipTriangle(tcx, (int)o, *t, ot, p, op);
             FlipEdgeEvent(tcx, ep, eq, t, p);
         }
-    }
-    else {
+    } else {
         Point& newP = NextFlipPoint(ep, eq, ot, op);
         FlipScanEdgeEvent(tcx, ep, eq, *t, ot, newP);
         EdgeEvent(tcx, ep, eq, t, p);
@@ -2127,24 +2115,14 @@ Point& Sweep::NextFlipPoint(Point& ep, Point& eq, Triangle& ot, Point& op)
     throw std::runtime_error("[Unsupported] Opposing point on constrained edge");
 }
 
-void Sweep::FlipScanEdgeEvent(SweepContext& tcx, Point& ep, Point& eq, Triangle& flip_triangle,
-    Triangle& t, Point& p)
+void Sweep::FlipScanEdgeEvent(SweepContext& tcx, Point& ep, Point& eq, Triangle& flip_triangle, Triangle& t, Point& p)
 {
     Triangle& ot = t.NeighborAcross(p);
     Point& op = *ot.OppositePoint(t, p);
 
     if (InScanArea(eq, *flip_triangle.PointCCW(eq), *flip_triangle.PointCW(eq), op)) {
-        // flip with new edge op->eq
         FlipEdgeEvent(tcx, eq, op, &ot, op);
-        // TODO: Actually I just figured out that it should be possible to
-        //       improve this by getting the next ot and op before the the above
-        //       flip and continue the flipScanEdgeEvent here
-        // set new ot and op here and loop back to inScanArea test
-        // also need to set a new flip_triangle first
-        // Turns out at first glance that this is somewhat complicated
-        // so it will have to wait.
-    }
-    else{
+    } else {
         Point& newP = NextFlipPoint(ep, eq, ot, op);
         FlipScanEdgeEvent(tcx, ep, eq, flip_triangle, ot, newP);
     }
@@ -2282,11 +2260,20 @@ void GenBig()
 void GenInt()
 {
     FILE* fOut = fopen("int.txt", "w");
-    static const int N = 10000;
+    static const int N = 100000;
     fprintf(fOut, "%d\n", N);
-    for (int i = 0; i < N; ++i)
+    set<int> used;
+    for (int i = 0; i < N;)
     {
-        fprintf(fOut, "%d %d\n", rand() % 10, rand() % 10);
+        int x = rand() % 1000;
+        int y = rand() % 1000;
+        int key = x*43434 + y;
+        if (used.find(key) == used.end())
+        {
+            used.insert(key);
+            fprintf(fOut, "%d %d\n", x, y);
+            ++i;
+        }
     }
     static const int M = 10000;
     fprintf(fOut, "%d\n", M);
@@ -2324,7 +2311,9 @@ int main() {
 #ifndef ONLINE_JUDGE
     // GenBig();
     // freopen("big.txt", "r", stdin);
-    freopen("input.txt", "r", stdin);
+    GenInt();
+    freopen("int.txt", "r", stdin);
+    // freopen("input.txt", "r", stdin);
 #endif
 
     // cout << sizeof(Triangle) << endl;
@@ -2354,18 +2343,19 @@ int main() {
     vector<Point> points(m);
     vector<Point*> ppoints(m);
     for (int i = 0; i < m; ++i) {
-        points[i] = Point(dpoints[i]._x, dpoints[i]._y, i);
+        points[i] = Point(dpoints[indices[i]]._x, dpoints[indices[i]]._y, indices[i]);
+    }
+    for (int i = 0; i < m; ++i) {
         ppoints[i] = &points[i];
     }
     CDT cdt(ppoints);
 
     std::vector<Triangle*> triangles;
-    if (m > 2) {
+    if (m > 10) {
         cdt.Triangulate();
         triangles = cdt.GetTriangles();
     }
 
-    graph.resize(m);
     for (size_t i = 0; i < triangles.size(); ++i) {
         Triangle& t = *triangles[i];
         for (int j = 0; j < 3; ++j) {
@@ -2385,7 +2375,7 @@ int main() {
     Integers dindices;
     Integers temp;
 
-    for (int i = 0; i < n; ++i) {        
+    for (int i = 0; i < n; ++i) {
         long double x;
         long double y;
         scanf("%Lf%Lf", &x, &y);
@@ -2393,11 +2383,11 @@ int main() {
 
         dindices.clear();
         TBase mind = INF;
-        if (m > 10) {
+        if (m > 2 && !triangles.empty()) {
             const Triangle& t = *(triangles[0]);
-            for (int i = 0; i < 3; ++i) {
-                if (t.GetPoint(i)->index >= 0) {
-                    temp.push_back(t.GetPoint(0)->index);
+            for (int k = 0; k < 3; ++k) {
+                if (t.GetPoint(k)->index >= 0) {
+                    temp.push_back(t.GetPoint(k)->index);
                 }
             }
             for (int k = 0; k < temp.size(); ++k) {
@@ -2408,10 +2398,10 @@ int main() {
                 int index = qu.front();
                 qu.pop();
                 TBase dist = dpoints[index].distance2(dq);
-                if (dist <= mind + 1e-9) {
+                if (dist <= mind + 1e-6) {
                     if (dist < mind) {
-                        if (dist + 1e-9 < mind) {
-                            result.clear();
+                        if (dist + 1e-6 < mind) {
+                            dindices.clear();
                         }
                         mind = dist;
                     }
