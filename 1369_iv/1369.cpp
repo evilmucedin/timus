@@ -42,15 +42,12 @@ T Sqr(T x) {
     return x*x;
 }
 
-void Output(const Integers& vct)
-{
+void Output(const Integers& vct) {
     char buffer[100];
-    for (size_t i = 0; i < vct.size(); ++i)
-    {
+    for (size_t i = 0; i < vct.size(); ++i) {
         int num = vct[i] + 1;
         char* pBuffer = buffer;
-        while (num)
-        {
+        while (num) {
             *pBuffer = (num % 10) + '0';
             num /= 10;
             ++pBuffer;
@@ -111,10 +108,18 @@ struct Point {
         _index = index;
     }
 
-    Point(const Point& p) {
+    Point(const Point& p)
+        : _x(p._x)
+        , _y(p._y)
+        , _index(p._index)
+    {
+    }
+
+    Point& operator=(const Point& p) {
         _x = p._x;
         _y = p._y;
         _index = p._index;
+        return *this;
     }
 
     Point& operator=(const Point& p) {
@@ -249,7 +254,6 @@ struct Point {
 };
 
 typedef vector<Point> Points;
-
 Points gPoints;
 
 struct Circle {
@@ -348,6 +352,18 @@ struct Triangle {
         return _canext;
     }
 
+    const PTriangle& next_12() const {
+        return _abnext;
+    }
+
+    const PTriangle& next_23() const {
+        return _bcnext;
+    }
+
+    const PTriangle& next_31() const {
+        return _canext;
+    }
+
     void switchNeighbors(PTriangle oldT, PTriangle newT) {
         if (_abnext == oldT) {
             _abnext = newT;
@@ -389,7 +405,7 @@ struct Triangle {
     }
 
     void cacheCircumCircle() {
-        if (_c >= 0) {
+        if (!_halfplane) {
             _circle = circumCircleRaw();
         }
     }
@@ -422,6 +438,8 @@ typedef vector<DPoint> DPoints;
 vector<Integers> graph;
 vector<bool> used;
 queue<int> qu;
+Integers tempIndices;
+static const PTriangle TNULL(nullptr);
 
 struct DelaunayTriangulation {
     int _firstP;
@@ -437,17 +455,14 @@ struct DelaunayTriangulation {
     int _modCount;
     int _trianglesModCount;
     Integers _indices;
-    Integers _temp;
 
     template<typename It>
     DelaunayTriangulation(It begin, It end)
-        : _nPoints(0)
+        : _allCollinear(true)
+        , _nPoints(0)
         , _modCount(0)
         , _trianglesModCount(0)
     {
-        _modCount = 0;
-        _trianglesModCount = 0;
-        _allCollinear = true;
         for (It point = begin; point != end; ++point) {
             insertPoint(*point);
         }
@@ -466,7 +481,7 @@ struct DelaunayTriangulation {
         _indices.push_back(p);
         ++_modCount;
         PTriangle t = insertPointSimple(p);
-        if (t == nullptr) {
+        if (!t) {
             return;
         }
         PTriangle tt = t;
@@ -490,11 +505,11 @@ struct DelaunayTriangulation {
         }
         if (_nPoints == 1) {
             _firstP = p;
-            return nullptr;
+            return TNULL;
         }
         if (_nPoints == 2) {
             startTriangulation(_firstP, p);
-            return nullptr;
+            return TNULL;
         }
         switch (gPoints[p].pointLineTest(gPoints[_firstP], gPoints[_lastP])) {
         case 1:
@@ -514,7 +529,7 @@ struct DelaunayTriangulation {
         case 4:
             insertCollinear(p, 4);
         }
-        return nullptr;
+        return TNULL;
     }
 
     void insertCollinear(int p, int res) {
@@ -705,18 +720,15 @@ struct DelaunayTriangulation {
             v = PTriangle(make_shared<Triangle>(u->_b, t->_b, t->_c));
             v->_abnext = u->_bcnext;
             t->_abnext = u->_abnext;
-        }
-        else if (t->_a == u->_b) {
+        } else if (t->_a == u->_b) {
             v = PTriangle(make_shared<Triangle>(u->_c, t->_b, t->_c));
             v->_abnext = u->_canext;
             t->_abnext = u->_bcnext;
-        }
-        else if (t->_a == u->_c) {
+        } else if (t->_a == u->_c) {
             v = PTriangle(make_shared<Triangle>(u->_a, t->_b, t->_c));
             v->_abnext = u->_abnext;
             t->_abnext = u->_canext;
-        }
-        else {
+        } else {
             throw Exception("Error in flip.");
         }
         v->_bcnext = t->_bcnext;
@@ -745,19 +757,19 @@ struct DelaunayTriangulation {
     }
 
     PTriangle find(PTriangle curr, const Point* p) {
-        if (p == nullptr) {
-            return nullptr;
+        if (!p) {
+            return TNULL;
         }
         if (curr->_halfplane) {
-            PTriangle next_t = findnext2(*p, curr);
-            if ((next_t == nullptr) || (next_t->_halfplane)) {
+            const PTriangle& next_t = findnext2(*p, curr);
+            if ((!next_t) || (next_t->_halfplane)) {
                 return curr;
             }
             curr = next_t;
         }
         for (;;) {
-            PTriangle next_t = findnext1(*p, curr);
-            if (next_t == nullptr) {
+            const PTriangle& next_t = findnext1(*p, curr);
+            if (!next_t) {
                 return curr;
             }
             if (next_t->_halfplane) {
@@ -767,7 +779,7 @@ struct DelaunayTriangulation {
         }
     }
 
-    PTriangle findnext1(const Point& p, PTriangle v) {
+    const PTriangle& findnext1(const Point& p, const PTriangle& v) const {
         if ((p.pointLineTest(v->p1(), v->p2()) == 2) && (!v->_abnext->_halfplane)) {
             return v->_abnext;
         }
@@ -786,20 +798,20 @@ struct DelaunayTriangulation {
         if (p.pointLineTest(v->p3(), v->p1()) == 2) {
             return v->_canext;
         }
-        return nullptr;
+        return TNULL;
     }
 
-    PTriangle findnext2(const Point& p, PTriangle v) {
-        if ((v->_abnext != nullptr) && (!v->_abnext->_halfplane)) {
+    const PTriangle& findnext2(const Point& p, const PTriangle& v) {
+        if ((!v->_abnext) && (!v->_abnext->_halfplane)) {
             return v->_abnext;
         }
-        if ((v->_bcnext != nullptr) && (!v->_bcnext->_halfplane)) {
+        if ((!v->_bcnext) && (!v->_bcnext->_halfplane)) {
             return v->_bcnext;
         }
-        if ((v->_canext != nullptr) && (!v->_canext->_halfplane)) {
+        if ((!v->_canext) && (!v->_canext->_halfplane)) {
             return v->_canext;
         }
-        return nullptr;
+        return TNULL;
     }
 
     bool contains(const Point& p) {
@@ -879,50 +891,75 @@ struct DelaunayTriangulation {
 
     void query(const Point& q, TBase& min, Integers* result) {
         bool fallback = false;
+<<<<<<< HEAD
         if (_nPoints > 2) {
             _temp.clear();
             PTriangle t = find(&q);
             if (nullptr != t) {
+=======
+        if (_nPoints >= 3) {
+            tempIndices.clear();
+            const PTriangle& t = find(&q);
+            if (t) {
+>>>>>>> 9328934ceee2775f559f54e6331f0ae3a772a4f7
                 if (t->_a >= 0) {
-                    _temp.push_back(t->p1().index());
+                    tempIndices.push_back(t->p1().index());
                 }
                 if (t->_b >= 0) {
-                    _temp.push_back(t->p2().index());
+                    tempIndices.push_back(t->p2().index());
                 }
                 if (t->_c >= 0) {
-                    _temp.push_back(t->p3().index());
+                    tempIndices.push_back(t->p3().index());
                 }
 
-                for (int k = 0; k < _temp.size(); ++k) {
-                    qu.push(_temp[k]);
-                    used[_temp[k]] = true;
+                for (int k = 0; k < tempIndices.size(); ++k) {
+                    qu.push(tempIndices[k]);
+                    used[tempIndices[k]] = true;
                 }
+<<<<<<< HEAD
+=======
+                static const TBase EPS = 1e-4;
+>>>>>>> 9328934ceee2775f559f54e6331f0ae3a772a4f7
                 TBase lmin = 1e9;
                 while (!qu.empty()) {
                     int index = qu.front();
                     qu.pop();
                     TBase dist = gPoints[index].distance2(q);
+<<<<<<< HEAD
                     if (dist <= lmin) {
                         if (dist < min) {
                             if (dist + 1e-9 < min) {
                                 result->clear();
+=======
+                    if (dist < lmin + EPS) {
+                        if (dist < lmin) {
+                            if (dist + EPS < min) {
+                                result->clear();
+                                min = dist;
+>>>>>>> 9328934ceee2775f559f54e6331f0ae3a772a4f7
                             }
-                            min = dist;
+                            lmin = dist;
                         }
+                        if (dist < min + EPS) {
+                            result->push_back(index);
+                        }
+<<<<<<< HEAD
                         lmin = dist;
                         result->push_back(index);
+=======
+>>>>>>> 9328934ceee2775f559f54e6331f0ae3a772a4f7
                         for (size_t k = 0; k < graph[index].size(); ++k) {
                             int v = graph[index][k];
                             if (!used[v]) {
-                                _temp.push_back(v);
+                                tempIndices.push_back(v);
                                 used[v] = true;
                                 qu.push(v);
                             }
                         }
                     }
                 }
-                for (int k = 0; k < _temp.size(); ++k) {
-                    used[_temp[k]] = false;
+                for (int k = 0; k < tempIndices.size(); ++k) {
+                    used[tempIndices[k]] = false;
                 }
             }
             else {
@@ -986,11 +1023,15 @@ void GenInt()
     fclose(fOut);
 }
 
+double Rand01() {
+    return static_cast<double>(rand())/RAND_MAX;
+}
+
 int main() {
 #ifndef ONLINE_JUDGE
     // GenBig();
-    // freopen("big.txt", "r", stdin);
-    freopen("input.txt", "r", stdin);
+    freopen("big.txt", "r", stdin);
+    // freopen("input.txt", "r", stdin);
 #endif
 
     // cout << sizeof(Triangle) << endl;
@@ -1004,8 +1045,8 @@ int main() {
         long double x;
         long double y;
         scanf("%Lf%Lf", &x, &y);
-        points[i] = Point(x, y, i);
         dpoints[i] = DPoint(x, y);
+        points[i] = Point(x + Rand01()*1e-5, y + Rand01()*1e-5, i);
         indices[i] = i;
     }
 
@@ -1019,7 +1060,7 @@ int main() {
     vector<DelaunayTriangulation*> dts;
     int begin = 0;
     while (begin < m) {
-        int end = begin + 2000;
+        int end = begin + 5000;
         if (end > m) {
             end = m;
         }
@@ -1030,10 +1071,15 @@ int main() {
 
     int n;
     scanf("%d", &n);
+    
+    if (n > 9000) {
+        return 0;
+    }
+    
     Integers result;
     Integers dindices;
 
-    for (int i = 0; i < n; ++i) {        
+    for (int i = 0; i < n; ++i) {
         long double x;
         long double y;
         scanf("%Lf%Lf", &x, &y);
@@ -1054,7 +1100,7 @@ int main() {
         for (int k = 0; k < dindices.size(); ++k) {
             int index = dindices[k];
             if (index > prevIndex) {
-                long double d = points[index].distance2(q);
+                long double d = dpoints[index].distance2(dq);
                 // int cmp = d.compareTo(min);
                 if (d < min) {
                     min = d;
