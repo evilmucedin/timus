@@ -171,7 +171,6 @@ struct Edge {
 
 class Triangle {
 public:
-
     /// Constructor
     Triangle(Point& a, Point& b, Point& c);
 
@@ -2307,13 +2306,17 @@ struct DPoint {
 
 typedef vector<DPoint> DPoints;
 
+double Rand01() {
+    return static_cast<double>(rand())/RAND_MAX;
+}
+
 int main() {
 #ifndef ONLINE_JUDGE
     // GenBig();
     // freopen("big.txt", "r", stdin);
-    GenInt();
-    freopen("int.txt", "r", stdin);
-    // freopen("input.txt", "r", stdin);
+    // GenInt();
+    // freopen("int.txt", "r", stdin);
+    freopen("input.txt", "r", stdin);
 #endif
 
     // cout << sizeof(Triangle) << endl;
@@ -2343,7 +2346,7 @@ int main() {
     vector<Point> points(m);
     vector<Point*> ppoints(m);
     for (int i = 0; i < m; ++i) {
-        points[i] = Point(dpoints[indices[i]]._x, dpoints[indices[i]]._y, indices[i]);
+        points[i] = Point(dpoints[indices[i]]._x + Rand01()*1e-8, dpoints[indices[i]]._y + Rand01()*1e-8, indices[i]);
     }
     for (int i = 0; i < m; ++i) {
         ppoints[i] = &points[i];
@@ -2351,7 +2354,7 @@ int main() {
     CDT cdt(ppoints);
 
     std::vector<Triangle*> triangles;
-    if (m > 10) {
+    if (m > 2) {
         cdt.Triangulate();
         triangles = cdt.GetTriangles();
     }
@@ -2394,13 +2397,14 @@ int main() {
                 qu.push(temp[k]);
                 used[temp[k]] = true;
             }
+            static const double EPS1 = 1e2;
             while (!qu.empty()) {
                 int index = qu.front();
                 qu.pop();
                 TBase dist = dpoints[index].distance2(dq);
-                if (dist <= mind + 1e-6) {
+                if (dist <= mind + EPS1) {
                     if (dist < mind) {
-                        if (dist + 1e-6 < mind) {
+                        if (dist + EPS1 < mind) {
                             dindices.clear();
                         }
                         mind = dist;
@@ -2428,19 +2432,21 @@ int main() {
             }
         }
 
-        // BigDecimal min = new BigDecimal(1e12);
         result.clear();
         long double min = 1e12;
         int prevIndex = -1;
+        static const long double EPS2 = 1e-10;
         for (int k = 0; k < dindices.size(); ++k) {
             int index = dindices[k];
             if (index > prevIndex) {
                 long double d = dpoints[index].distance2(dq);
                 if (d < min) {
+                    if (d + EPS2 < min) {
+                        result.clear();
+                    }
                     min = d;
-                    result.clear();
                 }
-                if (d == min) {
+                if (d < min + EPS2) {
                     result.push_back(index);
                 }
                 prevIndex = index;

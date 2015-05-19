@@ -91,9 +91,6 @@ struct Point {
     TBase _y;
     int _index;
 
-    char xybuffer[1000];
-    // __m128* _xy;
-
     static const int ONSEGMENT = 0;
     static const int LEFT = 1;
     static const int RIGHT = 2;
@@ -104,17 +101,12 @@ struct Point {
     Point()
         : _index(-1)
     {
-        // SetupPXY();
     }
 
     Point(TBase x, TBase y, int index) {
         _x = x;
         _y = y;
         _index = index;
-
-        // SetupPXY();
-        // double xy[2] = {_x, _y};
-        // *_xy =_mm_load_pd(xy);
     }
 
     Point(const Point& p)
@@ -122,26 +114,12 @@ struct Point {
         , _y(p._y)
         , _index(p._index)
     {
-        // SetupPXY();
-        // *_xy = *(p._xy);
     }
-
-    /*
-    void SetupPXY() {
-        size_t lbuffer = (size_t)(buffer);
-        if (lbuffer & 15) {
-            _xy = (__m128*)((buffer + 16 - (lbuffer & 15)));
-        } else {
-            _xy = (__m128*)buffer;
-        }
-    }
-    */
 
     Point& operator=(const Point& p) {
         _x = p._x;
         _y = p._y;
         _index = p._index;
-        // *_xy = *(p._xy);
         return *this;
     }
 
@@ -421,7 +399,9 @@ struct Triangle {
     }
 
     void cacheCircumCircle() {
-        _circle = circumCircleRaw();
+        if (!_halfplane) {
+            _circle = circumCircleRaw();
+        }
     }
 
     bool circumcircleContains(const Point& p) const {
@@ -923,7 +903,7 @@ struct DelaunayTriangulation {
                     qu.push(tempIndices[k]);
                     used[tempIndices[k]] = true;
                 }
-                static const TBase EPS = 1e-9;
+                static const TBase EPS = 1e-4;
                 TBase lmin = 1e9;
                 while (!qu.empty()) {
                     int index = qu.front();
@@ -1015,6 +995,10 @@ void GenInt()
     fclose(fOut);
 }
 
+double Rand01() {
+    return static_cast<double>(rand())/RAND_MAX;
+}
+
 int main() {
 #ifndef ONLINE_JUDGE
     // GenBig();
@@ -1033,8 +1017,8 @@ int main() {
         long double x;
         long double y;
         scanf("%Lf%Lf", &x, &y);
-        points[i] = Point(x, y, i);
         dpoints[i] = DPoint(x, y);
+        points[i] = Point(x + Rand01()*1e-5, y + Rand01()*1e-5, i);
         indices[i] = i;
     }
 
@@ -1048,7 +1032,7 @@ int main() {
     vector<DelaunayTriangulation*> dts;
     int begin = 0;
     while (begin < m) {
-        int end = begin + 2000;
+        int end = begin + 5000;
         if (end > m) {
             end = m;
         }
@@ -1067,7 +1051,7 @@ int main() {
     Integers result;
     Integers dindices;
 
-    for (int i = 0; i < n; ++i) {        
+    for (int i = 0; i < n; ++i) {
         long double x;
         long double y;
         scanf("%Lf%Lf", &x, &y);
@@ -1088,7 +1072,7 @@ int main() {
         for (int k = 0; k < dindices.size(); ++k) {
             int index = dindices[k];
             if (index > prevIndex) {
-                long double d = points[index].distance2(q);
+                long double d = dpoints[index].distance2(dq);
                 // int cmp = d.compareTo(min);
                 if (d < min) {
                     min = d;
