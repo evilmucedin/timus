@@ -2394,6 +2394,7 @@ int main() {
         dindices.clear();
         TBase mind = INF;
         if (m > 10) {
+            temp.clear();
             const Triangle& t = *(triangles[0]);
             for (int i = 0; i < 3; ++i) {
                 if (t.GetPoint(i)->index >= 0) {
