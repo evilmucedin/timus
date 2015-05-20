@@ -228,7 +228,7 @@ struct KDTree
         : _left(nullptr)
         , _right(nullptr)
     {
-        if (11 == depth) {
+        if (8 == depth) {
             ConvertVector(x, &_x, &_len);
             ConvertVector(y, &_y, &_len);
             _indices = indices;
