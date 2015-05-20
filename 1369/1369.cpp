@@ -108,8 +108,9 @@ static void ConvertVector(const TDoubles& floats, TVector** result, int* len)
 static double Median(const TDoubles& floats)
 {
     TDoubles temp(floats);
-    std::sort(temp.begin(), temp.end());
-    return temp[temp.size() / 2];
+    int n = temp.size() / 2;
+    nth_element(temp.begin(), temp.begin() + n, temp.end());
+    return temp[n];
 }
 
 struct KDTree
@@ -130,11 +131,14 @@ struct KDTree
         : _left(nullptr)
         , _right(nullptr)
     {
-        if (depth == 9)
+        if (8 == depth)
         {
             ConvertVector(x, &_x, &_len);
             ConvertVector(y, &_y, &_len);
             _indices = indices;
+            while (_indices.size() < 2*_len) {
+                _indices.push_back(0);
+            }
             _isLeaf = true;
             _minX = INF;
             _maxX = -INF;
@@ -201,54 +205,54 @@ struct KDTree
                 return;
             }
 
-            double d;
+            double d2;
             if (x < _minX)
             {
                 if (y < _minY)
                 {
-                    d = Min(_minX - x, _minY - y);
+                    d2 = Sqr(_minX - x) + Sqr(_minY - y);
                 }
                 else if (y > _maxY)
                 {
-                    d = Min(_minX - x, y - _maxY);
+                    d2 = Sqr(_minX - x) + Sqr(y - _maxY);
                 }
                 else
                 {
-                    d = _minX - x;
+                    d2 = Sqr(_minX - x);
                 }
             }
             else if (x > _maxX)
             {
                 if (y < _minY)
                 {
-                    d = Min(x - _maxX, _minY - y);
+                    d2 = Sqr(x - _maxX) + Sqr(_minY - y);
                 }
                 else if (y > _maxY)
                 {
-                    d = Min(x - _maxX, y - _maxY);
+                    d2 = Sqr(x - _maxX) + Sqr(y - _maxY);
                 }
                 else
                 {
-                    d = x - _maxX;
+                    d2 = Sqr(x - _maxX);
                 }
             }
             else
             {
                 if (y < _minY)
                 {
-                    d = _minY - y;
+                    d2 = Sqr(_minY - y);
                 }
                 else if (y > _maxY)
                 {
-                    d = y - _maxY;
+                    d2 = Sqr(y - _maxY);
                 }
                 else
                 {
-                    d = 0;
+                    d2 = 0;
                 }
             }
 
-            if (d*d > *minDist)
+            if (d2 > *minDist)
             {
                 return;
             }
@@ -265,7 +269,7 @@ struct KDTree
                 dx2.v = _mm_add_pd(dx2.v, dy2.v);
 
                 TVector cmpMax;
-                cmpMax.v = _mm_cmplt_pd(dx2.v, minMax->v);
+                cmpMax.v = _mm_cmple_pd(dx2.v, minMax->v);
                 for (int k = 0; k < 2; ++k)
                 {
                     if (cmpMax.d[k])
@@ -280,6 +284,7 @@ struct KDTree
                             minMax->v = _mm_set1_pd(*minDist + EPS);
                             *minMin = *minDist - EPS;
                         }
+                        progress = true;
                         result->push_back(_indices[2 * j + k]);
                     }
                 }
@@ -525,7 +530,7 @@ int main()
 
     long double* xcd = (long double*)_mm_malloc(sizeof(long double)*size, 32);
     long double* ycd = (long double*)_mm_malloc(sizeof(long double)*size, 32);
-    long double mx = 1.0;
+    long double mx = 1e-5;
     for (int i = 0; i < m; ++i)
     {
         scanf("%Lf%Lf", &xcd[i], &ycd[i]);
@@ -552,8 +557,8 @@ int main()
         yc[i] = ycd[indices[i]] / mx;
     }
 
-    // KDTree* kdTree = new KDTree(0, xc, yc, indices);
-    CircleTree* cTree = new CircleTree(0, xc, yc, indices);
+    KDTree* kdTree = new KDTree(0, xc, yc, indices);
+    // CircleTree* cTree = new CircleTree(0, xc, yc, indices);
 
     int n;
     scanf("%d", &n);
@@ -574,14 +579,14 @@ int main()
         y2.v = _mm_set1_pd(y);
 
         result.clear();
-        double minDist = 1e8;
+        double minDist = 1e100;
         TVector minMax;
         minMax.v = _mm_set1_pd(minDist);
         double minMin = minDist;
-        // kdTree->Solve(x, y, x2, y2, &minDist, &minMax, &minMin, &result);
-        cTree->Solve(x, y, x2, y2, &minDist, &minMax, &minMin, &result);
+        kdTree->Solve(x, y, x2, y2, &minDist, &minMax, &minMin, &result);
+        // cTree->Solve(x, y, x2, y2, &minDist, &minMax, &minMin, &result);
 
-        if (result.size() < 10)
+        if (result.size() < 5)
         {
             result2.clear();
             long double mind = 1e15;
@@ -609,7 +614,8 @@ int main()
             result2 = result;
         }
 
-        std::sort(result2.begin(), result2.end());
+        sort(result2.begin(), result2.end());
+        result2.erase(unique(result2.begin(), result2.end()), result2.end());
 
         Output(result2);
     }

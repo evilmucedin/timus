@@ -228,7 +228,7 @@ struct KDTree
         : _left(nullptr)
         , _right(nullptr)
     {
-        if (9 == depth) {
+        if (11 == depth) {
             ConvertVector(x, &_x, &_len);
             ConvertVector(y, &_y, &_len);
             _indices = indices;
@@ -353,17 +353,26 @@ struct KDTree
                     }
                 }
             } else {
+                if (rand() & 1) {
                 if (_left) {
                     _left->Solve(x, y, x4, y4, minDist, minMax, result, limit);
                 }
                 if (_right) {
                     _right->Solve(x, y, x4, y4, minDist, minMax, result, limit);
                 }
+                } else {
+                if (_right) {
+                    _right->Solve(x, y, x4, y4, minDist, minMax, result, limit);
+                }
+                if (_left) {
+                    _left->Solve(x, y, x4, y4, minDist, minMax, result, limit);
+                }
+                }
             }
         }
 };
 
-const float KDTree::EPS = 5e-7f;
+const float KDTree::EPS = 1e-7f;
 
 void GenBig()
 {
@@ -654,11 +663,18 @@ struct QPoint {
 };
 typedef vector<QPoint> QPoints;
 
+Point CircumCenter(const Point& a, const Point& b, const Point& c) {
+    TBase u = ((a._x - b._x) * (a._x + b._x) + (a._y - b._y) * (a._y + b._y));
+    TBase v = ((b._x - c._x) * (b._x + c._x) + (b._y - c._y) * (b._y + c._y));
+    TBase den = ((a._x - b._x) * (b._y - c._y) - (b._x - c._x) * (a._y - b._y))*2.0;
+    return Point((u * (b._y - c._y) - v * (a._y - b._y)) / den, (v * (a._x - b._x) - u * (b._x - c._x)) / den, -1);
+}
+
 int main() {
 #ifndef ONLINE_JUDGE
-    // GenBig();
-    // freopen("big.txt", "r", stdin);
-    freopen("input.txt", "r", stdin);
+    GenBig();
+    freopen("big.txt", "r", stdin);
+    // freopen("input.txt", "r", stdin);
 #endif
 
     int m;
@@ -694,15 +710,34 @@ int main() {
     vector<Integers> graph;
     graph.resize(m);
 
+    static const size_t NCENTERS = 6;
+    Points centers;
+    vector<PointProjections> angles;
+    
+    Points points(m);
     {
-        Points points(m);
         for (int i = 0; i < m; ++i) {
             points[i] = Point(dpoints[indices[i]]._x, dpoints[indices[i]]._y, indices[i]);
         }
 
+        centers.resize(NCENTERS);
+        angles.resize(NCENTERS);
+        for (int it = 0; it < NCENTERS; ++it) {
+            int index1 = rand() % m;
+            int index2 = rand() % m;
+            int index3 = rand() % m;
+            centers[it] = CircumCenter(points[index1], points[index2], points[index3]);
+            angles[it].resize(m);
+            for (int i = 0; i < m; ++i) {
+                angles[it][i]._p = &points[i];
+                angles[it][i]._projection = Angle(points[i], centers[it]);
+            }
+            sort(angles[it].begin(), angles[it].end());
+        }
+        
         PointProjections projections(m);
 
-        static const int N_IT = 6;
+        static const int N_IT = 5;
         static const int D = 1;
 
         {
@@ -819,7 +854,7 @@ int main() {
             qu.push(i);
             while (!qu.empty()) {
                 int index = qu.front();
-                qu.pop();                
+                qu.pop();
                 for (Integers::const_iterator toItem = graph[index].begin(); toItem != graph[index].end(); ++toItem) {
                     int v = *toItem;
                     if (!used[v]) {
@@ -844,12 +879,13 @@ int main() {
         long double y = qq._y.ToDouble();
 
         DPoint dq(x, y);
+        Point pq(x, y, -1);
         __m128d xy = _mm_set_pd(x, y);
 
         dindices.clear();
         
         temp.clear();
-        TBase mind = INF;
+        TBase mind = 1e30;
         for (int j = 0; j < components.size(); ++j) {
             int index = components[j];
             qu.push(index);
@@ -872,10 +908,10 @@ int main() {
             xyd2 = _mm_mul_pd(xyd2, xyd2);
             long double dist = GET_ITEM2(xyd2, 0) + GET_ITEM2(xyd2, 1);
 
-            static const long double EPS2 = 5e-7;
+            static const long double EPS2 = 1e-4;
             if (dist <= mind + EPS2) {
                 if (dist < mind) {
-                    if (dist + EPS2 < mind) {
+                    if (dist + 1e-5 < mind) {
                         dindices.clear();
                     }
                     mind = dist;
@@ -895,7 +931,37 @@ int main() {
             used[temp[k]] = false;
         }
 
-        {
+        for (int k = 0; k < NCENTERS; ++k) {
+            PointProjection qpp;
+            qpp._p = &pq;
+            qpp._projection = Angle(pq, centers[k]);
+            vector<PointProjection>::const_iterator toAngle = lower_bound(angles[k].begin(), angles[k].end(), qpp);
+            const PointProjection* bgn = &angles[k][0];
+            for (int delta = -20; delta <= 20; ++delta) {
+                const PointProjection* toCand = &(*toAngle) + delta;
+                while (toCand < bgn)
+                    toCand += angles[k].size();
+                while (toCand >= bgn + angles[k].size())
+                    toCand -= angles[k].size();
+                TBase d = pq.Distance2(*(toCand->_p));
+                if (d <= mind) {
+                    if (d + 1e-6 < mind) {
+                        dindices.clear();
+                    }
+                    if (d < mind) {
+                        mind = d;
+                    }
+                    dindices.push_back(toCand->_p->_index);
+                }
+            }
+        }
+        sort(dindices.begin(), dindices.end());
+        dindices.erase(unique(dindices.begin(), dindices.end()), dindices.end());
+
+        static const size_t FALLBACK_LIMIT = 100;
+        
+        bool fallback = false;
+        if (dindices.size() < FALLBACK_LIMIT) {
             float xn = x / mx;
             float yn = y / mx;
 
@@ -904,14 +970,27 @@ int main() {
             TVector y4;
             y4.v = _mm_set1_ps(yn);
 
-            float minDist = mind / mx / mx + 5e-7f;
+            float minDist = mind / mx / mx + 1e-6f;
             TVector minMax;
             minMax.v = _mm_set1_ps(minDist + KDTree::EPS);
-            int limit = 6000;
+            int limit = 4000;
             kdTree->Solve(xn, yn, x4, y4, &minDist, &minMax, &dindices, &limit);
+
+            sort(dindices.begin(), dindices.end());
+        } else {
+            fallback = true;
         }
 
-        sort(dindices.begin(), dindices.end());
+        if (dindices.size() >= FALLBACK_LIMIT) {
+            fallback = true;
+        }
+
+        if (fallback) {
+            dindices.resize(m);
+            for (int i = 0; i < m; ++i) {
+                dindices[i] = i;
+            }
+        }
 
         result.clear();
 
