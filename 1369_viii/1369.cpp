@@ -1,5 +1,10 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS
 
+#ifndef _MSC_VER
+#   pragma GCC target("sse4.2")
+#   pragma GCC optimize("O3")
+#endif
+
 #include <immintrin.h>
 #include <intrin.h>
 
@@ -196,11 +201,12 @@ static void ConvertVector(const TFloats& floats, TVector** result, int* len)
     }
 }
 
-static double Median(const TFloats& floats)
+static float Median(const TFloats& floats)
 {
     TFloats temp(floats);
-    sort(temp.begin(), temp.end());
-    return temp[temp.size() / 2];
+    size_t n = temp.size() / 2;
+    nth_element(temp.begin(), temp.begin() + n, temp.end());
+    return temp[n];
 }
 
 struct KDTree
@@ -216,31 +222,31 @@ struct KDTree
     float _maxX;
     float _minY;
     float _maxY;
+    static const float EPS;
 
     KDTree(int depth, const TFloats& x, const TFloats& y, const Integers& indices)
         : _left(nullptr)
         , _right(nullptr)
     {
-        if (depth == 9)
-        {
+        if (9 == depth) {
             ConvertVector(x, &_x, &_len);
             ConvertVector(y, &_y, &_len);
             _indices = indices;
+            while (_indices.size() < 4 * _len) {
+                _indices.push_back(0);
+            }
             _isLeaf = true;
             _minX = FINF;
             _maxX = -FINF;
             _minY = FINF;
             _maxY = -FINF;
-            for (size_t i = 0; i < x.size(); ++i)
-            {
+            for (size_t i = 0; i < x.size(); ++i) {
                 _minX = Min(_minX, x[i]);
                 _maxX = Max(_maxX, x[i]);
                 _minY = Min(_minY, y[i]);
                 _maxY = Max(_maxY, y[i]);
             }
-        }
-        else
-        {
+        } else {
             float separator = (depth & 1) ? Median(x) : Median(y);
 
             TFloats xLeft;
@@ -250,29 +256,23 @@ struct KDTree
             TFloats yRight;
             Integers indicesRight;
 
-            for (size_t i = 0; i < x.size(); ++i)
-            {
+            for (size_t i = 0; i < x.size(); ++i) {
                 bool toLeft = (depth & 1) ? (x[i] < separator) : (y[i] < separator);
-                if (toLeft)
-                {
+                if (toLeft) {
                     xLeft.push_back(x[i]);
                     yLeft.push_back(y[i]);
                     indicesLeft.push_back(indices[i]);
-                }
-                else
-                {
+                } else {
                     xRight.push_back(x[i]);
                     yRight.push_back(y[i]);
                     indicesRight.push_back(indices[i]);
                 }
             }
 
-            if (xLeft.size())
-            {
+            if (xLeft.size()) {
                 _left = new KDTree(depth + 1, xLeft, yLeft, indicesLeft);
             }
-            if (xRight.size())
-            {
+            if (xRight.size()) {
                 _right = new KDTree(depth + 1, xRight, yRight, indicesRight);
             }
 
@@ -283,76 +283,50 @@ struct KDTree
 #ifndef _MSC_VER
     __attribute__((force_align_arg_pointer))
 #endif
-        void Solve(float x, float y, const TVector& x4, const TVector& y4, float* minDist, TVector* minMax, float* minMin, Integers* result, int* limit) const
+        void Solve(float x, float y, const TVector& x4, const TVector& y4, float* minDist, TVector* minMax, Integers* result, int* limit) const
     {
-            if (*limit < 0)
-            {
+            if (*limit < 0) {
                 return;
             }
 
-            if (_isLeaf)
-            {
-                if (!_len)
-                {
+            if (_isLeaf) {
+                if (!_len) {
                     return;
                 }
 
-                float d;
-                if (x < _minX)
-                {
-                    if (y < _minY)
-                    {
-                        d = Min(_minX - x, _minY - y);
+                float d2;
+                if (x < _minX) {
+                    if (y < _minY) {
+                        d2 = Sqr(_minX - x) + Sqr(_minY - y);
+                    } else if (y > _maxY) {
+                        d2 = Sqr(_minX - x) + Sqr(y - _maxY);
+                    } else {
+                        d2 = Sqr(_minX - x);
                     }
-                    else if (y > _maxY)
-                    {
-                        d = Min(_minX - x, y - _maxY);
+                } else if (x > _maxX) {
+                    if (y < _minY) {
+                        d2 = Sqr(x - _maxX) + Sqr(_minY - y);
+                    } else if (y > _maxY) {
+                        d2 = Sqr(x - _maxX) + Sqr(y - _maxY);
+                    } else {
+                        d2 = Sqr(x - _maxX);
                     }
-                    else
-                    {
-                        d = _minX - x;
-                    }
-                }
-                else if (x > _maxX)
-                {
-                    if (y < _minY)
-                    {
-                        d = Min(x - _maxX, _minY - y);
-                    }
-                    else if (y > _maxY)
-                    {
-                        d = Min(x - _maxX, y - _maxY);
-                    }
-                    else
-                    {
-                        d = x - _maxX;
-                    }
-                }
-                else
-                {
-                    if (y < _minY)
-                    {
-                        d = _minY - y;
-                    }
-                    else if (y > _maxY)
-                    {
-                        d = y - _maxY;
-                    }
-                    else
-                    {
-                        d = 0;
+                } else {
+                    if (y < _minY) {
+                        d2 = Sqr(_minY - y);
+                    } else if (y > _maxY) {
+                        d2 = Sqr(y - _maxY);
+                    } else {
+                        d2 = 0;
                     }
                 }
 
-                if (d*d > *minDist)
-                {
+                if (d2 > *minDist) {
                     return;
                 }
 
-                static const float EPS = 4e-7f;
                 *limit -= _len;
-                for (int j = 0; j < _len; ++j)
-                {
+                for (int j = 0; j < _len; ++j) {
                     TVector dx4;
                     dx4.v = _mm_sub_ps(_x[j].v, x4.v);
                     dx4.v = _mm_mul_ps(dx4.v, dx4.v);
@@ -362,39 +336,34 @@ struct KDTree
                     dx4.v = _mm_add_ps(dx4.v, dy4.v);
 
                     TVector cmpMax;
-                    cmpMax.v = _mm_cmplt_ps(dx4.v, minMax->v);
-                    for (int k = 0; k < 4; ++k)
-                    {
-                        if (cmpMax.f[k])
-                        {
-                            if (dx4.f[k] < *minDist)
-                            {
-                                if (dx4.f[k] < *minMin)
-                                {
-                                    result->clear();
-                                }
+                    cmpMax.v = _mm_cmple_ps(dx4.v, minMax->v);
+                    for (int k = 0; k < 4; ++k) {
+                        if (cmpMax.f[k]) {
+                            /*
+                            if (dx4.f[k] + EPS < *minDist) {
+                                result->clear();
+                            }
+                            */
+                            if (dx4.f[k] < *minDist) {
                                 *minDist = dx4.f[k];
                                 minMax->v = _mm_set1_ps(*minDist + EPS);
-                                *minMin = *minDist - EPS;
                             }
                             result->push_back(_indices[4 * j + k]);
                         }
                     }
                 }
-            }
-            else
-            {
-                if (_left)
-                {
-                    _left->Solve(x, y, x4, y4, minDist, minMax, minMin, result, limit);
+            } else {
+                if (_left) {
+                    _left->Solve(x, y, x4, y4, minDist, minMax, result, limit);
                 }
-                if (_right)
-                {
-                    _right->Solve(x, y, x4, y4, minDist, minMax, minMin, result, limit);
+                if (_right) {
+                    _right->Solve(x, y, x4, y4, minDist, minMax, result, limit);
                 }
             }
         }
 };
+
+const float KDTree::EPS = 5e-7f;
 
 void GenBig()
 {
@@ -475,6 +444,216 @@ void DedupGraph(vector<Integers>& graph) {
     }
 }
 
+#ifndef _MSC_VER
+#   define GET_ITEM2(var, index) (var)[(index)]
+#else
+#   define GET_ITEM2(var, index) (var).m128d_f64[(index)]
+#endif
+
+struct BigDecimal
+{
+    Integers _digits;
+    int _power10;
+
+    static bool IsGoodChar(char ch) {
+        if (ch == '.') {
+            return true;
+        }
+        if (ch == '-') {
+            return true;
+        }
+        if (ch >= '0' && ch <= '9') {
+            return true;
+        }
+        return false;
+    }
+
+    BigDecimal(const char* s) {
+        while (*s && IsGoodChar(*s)) {
+            ++s;
+        }
+        if (*s) {
+            throw Exception("bad format");
+        }
+    }
+};
+
+struct QDouble {
+    long double _int;
+    long double _float;
+
+    QDouble() {
+
+    }
+
+    static const long double EPS;
+    static const long double NORM;
+
+    QDouble(long double ld) {
+        ld *= NORM;
+        _int = floor(ld);
+        _float = ld - _int;
+        Normalize();
+    }
+
+    void Normalize() {
+        long double diff2 = _int - floor(_int);
+        _int -= diff2;
+        _float += diff2;
+        
+        long double diff = floor(_float);
+        _float -= diff;
+        _int += diff;
+        
+        if (_float < 0.0) {
+            _float += 1.0;
+            _int -= 1.0;
+        }
+        if (_float > 1.0) {
+            _float -= 1.0;
+            _int += 1.0;
+        }
+    }
+
+    long double ToDouble() const {
+        return (_int + _float)/NORM;
+    }
+
+    bool operator<(const QDouble& rhs) const {
+        if (_int < rhs._int) {
+            return true;
+        }
+        else if (_int == rhs._int) {
+            return _float < rhs._float;
+        }
+        return false;
+    }
+
+    bool operator<=(const QDouble& rhs) const {
+        if (_int == rhs._int) {
+            return _float <= rhs._float;
+        }
+        else if (_int < rhs._int) {
+            return true;
+        }
+        return false;
+    }
+
+    void DeNorm() {
+        _int /= NORM;
+        _float /= NORM;
+    }
+};
+
+const long double QDouble::EPS = 1e-12;
+const long double QDouble::NORM = 10.0;
+
+void Minus(const QDouble& q1, const QDouble& q2, QDouble* result) {
+    result->_int = q1._int - q2._int;
+    result->_float = q1._float - q2._float;
+    result->Normalize();
+}
+
+void Add(const QDouble& q1, const QDouble& q2, QDouble* result) {
+    result->_int = q1._int + q2._int;
+    result->_float = q1._float + q2._float;
+    result->Normalize();
+}
+
+void Sqr(const QDouble& q, QDouble* result) {
+    result->_int = q._int*q._int;
+    result->_float = 2.0*q._float*q._int + q._float*q._float;
+    result->DeNorm();
+    result->Normalize();
+}
+
+void Mul(const QDouble& a, const QDouble& b, QDouble* result) {
+    result->_int = a._int*b._int;
+    result->_float = a._float*b._int + b._float*a._int + a._float*b._float;
+    result->DeNorm();
+    result->Normalize();
+}
+
+void ReadQDouble(const char* s, QDouble* result) {
+    QDouble power10(1.0);
+    QDouble now(0.0);
+    static const QDouble ten(10.0);
+    static const QDouble tenth(0.1);
+    bool minus = false;
+    bool inInt = true;
+    while (*s) {
+        if (*s == '-') {
+            minus = true;
+        }
+        else if (*s == '.') {
+            inInt = false;
+        }
+        else {
+            int digit = *s - '0';
+            if (inInt) {
+                QDouble temp1;
+                Mul(now, ten, &temp1);
+                QDouble temp2;
+                Add(temp1, QDouble(digit), &temp2);
+                now = temp2;
+            } else {
+                QDouble temp1;
+                Mul(power10, tenth, &temp1);
+                power10 = temp1;
+
+                QDouble temp2;
+                Mul(power10, QDouble(digit), &temp2);
+
+                QDouble temp3;
+                Add(now, temp2, &temp3);
+
+                now = temp3;
+            }
+        }
+        ++s;
+    }
+    *result = now;
+    if (minus) {
+        result->_float = -result->_float;
+        result->_int = -result->_int;
+        result->Normalize();
+    }
+}
+
+struct QPoint {
+    QDouble _x;
+    QDouble _y;
+
+    QPoint() {
+
+    }
+
+    QPoint(long double x, long double y)
+        : _x(x)
+        , _y(y)
+    {
+
+    }
+
+    QDouble distance2(const QPoint& p) const {
+        QDouble dx;
+        Minus(_x, p._x, &dx);
+        QDouble dx2;
+        Sqr(dx, &dx2);
+
+        QDouble dy;
+        Minus(_y, p._y, &dy);
+        QDouble dy2;
+        Sqr(dy, &dy2);
+
+        QDouble sum;
+        Add(dx2, dy2, &sum);
+
+        return sum;
+    }
+};
+typedef vector<QPoint> QPoints;
+
 int main() {
 #ifndef ONLINE_JUDGE
     // GenBig();
@@ -482,19 +661,34 @@ int main() {
     freopen("input.txt", "r", stdin);
 #endif
 
-    // cout << sizeof(Triangle) << endl;
-
     int m;
     scanf("%d", &m);
     DPoints dpoints(m);
-    long double mx = 1e-6;
+    QPoints qpoints(m);
+    __m128d* xyd = (__m128d*)_mm_malloc(sizeof(__m128d)*(m + 8), 32);
+    long double mx = 1e-12;
+    char sx[1000];
+    char sy[1000];
     for (int i = 0; i < m; ++i) {
-        long double x;
-        long double y;
-        scanf("%Lf%Lf", &x, &y);
+        scanf("%s%s", sx, sy);
+        ReadQDouble(sx, &qpoints[i]._x);
+        ReadQDouble(sy, &qpoints[i]._y);
+
+        long double x = qpoints[i]._x.ToDouble();
+        long double y = qpoints[i]._y.ToDouble();
+
         dpoints[i] = DPoint(x, y);
         mx = Max(mx, abs(x));
         mx = Max(mx, abs(y));
+        xyd[i] = _mm_set_pd(x, y);
+    }
+
+    Integers indices(m);
+    for (int i = 0; i < m; ++i) {
+        indices[i] = i;
+    }
+    for (int i = 0; i < m; ++i) {
+        swap(indices[i], indices[i + (rand() % (m - i))]);
     }
 
     vector<Integers> graph;
@@ -503,21 +697,52 @@ int main() {
     {
         Points points(m);
         for (int i = 0; i < m; ++i) {
-            points[i] = Point(dpoints[i]._x, dpoints[i]._y, i);
+            points[i] = Point(dpoints[indices[i]]._x, dpoints[indices[i]]._y, indices[i]);
         }
 
         PointProjections projections(m);
-        for (int i = 0; i < m; ++i) {
-            projections[i]._p = &points[i];
-        }
 
-        static const int N_IT = 7;
+        static const int N_IT = 6;
         static const int D = 1;
 
-        for (int it = 0; it < N_IT; ++it) {
+        {
+            static const int N_DIT = 10;
+            PointProjections dists(N_DIT);
+
+            for (int i = 0; i < m; ++i) {
+                for (int it = 0; it < N_DIT; ++it) {
+                    int index = rand() % m;
+                    dists[it]._p = &points[index];
+                    dists[it]._projection = points[index].Distance2(points[i]);
+                }
+                sort(dists.begin(), dists.end());
+                int it = 0;
+                while (it < dists.size() && (dists[it]._projection < 1e-12)) {
+                    ++it;
+                }
+                if (it < dists.size()) {
+                    int index1 = points[i]._index;
+                    while (it < D && it < dists.size()) {
+                        int index2 = dists[it]._p->_index;
+                        graph[index1].push_back(index2);
+                        graph[index2].push_back(index1);
+                        ++it;
+                    }
+                }
+            }
+        }
+
+        static const Vector vcts[2] = { Vector(1.0, 0.0), Vector(0.0, 1.0) };
+
+        for (int it = -2; it < N_IT; ++it) {
             Vector vRand(Rand(), Rand());
+            if (it == -2)
+                vRand = vcts[0];
+            else if (it == -1)
+                vRand = vcts[1];
             vRand.Normalize();
             for (int i = 0; i < m; ++i) {
+                projections[i]._p = &points[i];
                 projections[i]._projection = Dot(points[i], vRand);
             }
             sort(projections.begin(), projections.end());
@@ -538,11 +763,10 @@ int main() {
             }
         }
 
-        DedupGraph(graph);
-
         for (int it = 0; it < N_IT; ++it) {
             int index = rand() % m;
             for (int i = 0; i < m; ++i) {
+                projections[i]._p = &points[i];
                 projections[i]._projection = Angle(points[i], points[index]);
             }
             sort(projections.begin(), projections.end());
@@ -568,18 +792,9 @@ int main() {
 
     KDTree* kdTree;
     {
-        Integers indices(m);
-        for (int i = 0; i < m; ++i) {
-            indices[i] = i;
-        }
-        for (int i = 0; i < m; ++i) {
-            swap(indices[i], indices[i + (rand() % (m - i))]);
-        }
-
         TFloats xc(m);
         TFloats yc(m);
-        for (int i = 0; i < m; ++i)
-        {
+        for (int i = 0; i < m; ++i) {
             xc[i] = dpoints[indices[i]]._x / mx;
             yc[i] = dpoints[indices[i]]._y / mx;
         }
@@ -596,17 +811,52 @@ int main() {
     used.resize(m);
     queue<int> qu;
 
+    Integers components;
+    for (int i = 0; i < m; ++i) {
+        if (!used[i]) {
+            components.push_back(i);
+
+            qu.push(i);
+            while (!qu.empty()) {
+                int index = qu.front();
+                qu.pop();                
+                for (Integers::const_iterator toItem = graph[index].begin(); toItem != graph[index].end(); ++toItem) {
+                    int v = *toItem;
+                    if (!used[v]) {
+                        used[v] = true;
+                        qu.push(v);
+                    }
+                }
+            }
+        }
+    }
+    for (int i = 0; i < m; ++i) {
+        used[i] = false;
+    }
+
     for (int i = 0; i < n; ++i) {
-        long double x;
-        long double y;
-        scanf("%Lf%Lf", &x, &y);
+        QPoint qq;
+        scanf("%s%s", sx, sy);
+        ReadQDouble(sx, &qq._x);
+        ReadQDouble(sy, &qq._y);
+
+        long double x = qq._x.ToDouble();
+        long double y = qq._y.ToDouble();
+
         DPoint dq(x, y);
+        __m128d xy = _mm_set_pd(x, y);
 
         dindices.clear();
         
         temp.clear();
         TBase mind = INF;
-        for (int i = 0; i < 50; ++i) {
+        for (int j = 0; j < components.size(); ++j) {
+            int index = components[j];
+            qu.push(index);
+            used[index] = true;
+            temp.push_back(index);
+        }
+        for (int j = 0; j < 200; ++j) {
             int index = rand() % m;
             if (!used[index]) {
                 qu.push(index);
@@ -617,11 +867,16 @@ int main() {
         while (!qu.empty()) {
             int index = qu.front();
             qu.pop();
-            TBase dist = dpoints[index].distance2(dq);
-            if (dist <= mind + 1e-9) {
+            
+            __m128d xyd2 = _mm_sub_pd(xyd[index], xy);
+            xyd2 = _mm_mul_pd(xyd2, xyd2);
+            long double dist = GET_ITEM2(xyd2, 0) + GET_ITEM2(xyd2, 1);
+
+            static const long double EPS2 = 1e-6;
+            if (dist <= mind + EPS2) {
                 if (dist < mind) {
-                    if (dist + 1e-9 < mind) {
-                        result.clear();
+                    if (dist + EPS2 < mind) {
+                        dindices.clear();
                     }
                     mind = dist;
                 }
@@ -651,34 +906,64 @@ int main() {
 
             float minDist = mind / mx / mx + 1e-6f;
             TVector minMax;
-            minMax.v = _mm_set1_ps(minDist);
-            float minMin = minDist;
-            int limit = 10000;
-            kdTree->Solve(xn, yn, x4, y4, &minDist, &minMax, &minMin, &dindices, &limit);
+            minMax.v = _mm_set1_ps(minDist + KDTree::EPS);
+            int limit = 6000;
+            // kdTree->Solve(xn, yn, x4, y4, &minDist, &minMax, &dindices, &limit);
         }
 
         sort(dindices.begin(), dindices.end());
 
         result.clear();
-        long double min = 1e15;
-        static const long double LDEPS = 1e-10;
+
+        long double min = 1e100;
+        long double minPlus = 1e100;
+        static const long double LDEPS(1e-11);
         int prevIndex = -1;
         for (int k = 0; k < dindices.size(); ++k) {
             int index = dindices[k];
             if (index > prevIndex) {
-                long double d = dpoints[index].distance2(dq);
+                __m128d xyd2 = _mm_sub_pd(xyd[index], xy);
+                xyd2 = _mm_mul_pd(xyd2, xyd2);
+                long double d = GET_ITEM2(xyd2, 0) + GET_ITEM2(xyd2, 1);
                 if (d + LDEPS < min) {
                     result.clear();
                 }
                 if (d < min) {
                     min = d;
                 }
-                if (d < min + LDEPS) {
+                if (d <= min + LDEPS) {
                     result.push_back(index);
                 }
                 prevIndex = index;
             }
         }
+
+        /*
+        QDouble min = 1e100;
+        QDouble minPlus = 1e100;
+        static const QDouble LDEPS(1e-11);
+        int prevIndex = -1;
+        for (int k = 0; k < dindices.size(); ++k) {
+            int index = dindices[k];
+            if (index > prevIndex) {
+                QDouble d = qq.distance2(qpoints[index]);
+                QDouble temp;
+                QDouble dPlus;
+                Add(d, LDEPS, &dPlus);
+                if (dPlus < min) {
+                    result.clear();
+                }
+                if (d < min) {
+                    min = d;
+                    Add(min, LDEPS, &minPlus);
+                }
+                if (d <= minPlus) {
+                    result.push_back(index);
+                }
+                prevIndex = index;
+            }
+        }
+        */
 
         Output(result);
     }
