@@ -262,7 +262,7 @@ struct KDTree
                     return;
                 }
 
-                static const float EPS = 5e-8f;
+                static const float EPS = 1e-6f;
                 for (int j = 0; j < _len; ++j)
                 {
                     __m128 dx4 = _mm_sub_ps(_x[j], x4);
@@ -331,7 +331,7 @@ int main()
         mx = Max(mx, abs(ycd[i]));
         xyd[i] = _mm_set_pd(xcd[i], ycd[i]);
     }
-    mx = Max(mx, (long double)1e-7);
+    mx = Max(mx, (long double)1e-8);
 
     TIntVector indices(m);
     for (int i = 0; i < m; ++i)

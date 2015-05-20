@@ -872,7 +872,7 @@ int main() {
             xyd2 = _mm_mul_pd(xyd2, xyd2);
             long double dist = GET_ITEM2(xyd2, 0) + GET_ITEM2(xyd2, 1);
 
-            static const long double EPS2 = 1e-6;
+            static const long double EPS2 = 5e-7;
             if (dist <= mind + EPS2) {
                 if (dist < mind) {
                     if (dist + EPS2 < mind) {
@@ -904,11 +904,11 @@ int main() {
             TVector y4;
             y4.v = _mm_set1_ps(yn);
 
-            float minDist = mind / mx / mx + 1e-6f;
+            float minDist = mind / mx / mx + 5e-7f;
             TVector minMax;
             minMax.v = _mm_set1_ps(minDist + KDTree::EPS);
             int limit = 6000;
-            // kdTree->Solve(xn, yn, x4, y4, &minDist, &minMax, &dindices, &limit);
+            kdTree->Solve(xn, yn, x4, y4, &minDist, &minMax, &dindices, &limit);
         }
 
         sort(dindices.begin(), dindices.end());
