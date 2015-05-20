@@ -92,8 +92,12 @@ struct Point
 
     }
 
-    TBase Distance2(const Point& p) {
+    TBase Distance2(const Point& p) const {
         return Sqr(_x - p._x) + Sqr(_y - p._y);
+    }
+
+    bool operator==(const Point& rhs) {
+        return Distance2(rhs) < 1e-7;
     }
 };
 
@@ -285,94 +289,94 @@ struct KDTree
 #endif
         void Solve(float x, float y, const TVector& x4, const TVector& y4, float* minDist, TVector* minMax, Integers* result, int* limit) const
     {
-            if (*limit < 0) {
+        if (*limit < 0) {
+            return;
+        }
+
+        if (_isLeaf) {
+            if (!_len) {
                 return;
             }
 
-            if (_isLeaf) {
-                if (!_len) {
-                    return;
-                }
-
-                float d2;
-                if (x < _minX) {
-                    if (y < _minY) {
-                        d2 = Sqr(_minX - x) + Sqr(_minY - y);
-                    } else if (y > _maxY) {
-                        d2 = Sqr(_minX - x) + Sqr(y - _maxY);
-                    } else {
-                        d2 = Sqr(_minX - x);
-                    }
-                } else if (x > _maxX) {
-                    if (y < _minY) {
-                        d2 = Sqr(x - _maxX) + Sqr(_minY - y);
-                    } else if (y > _maxY) {
-                        d2 = Sqr(x - _maxX) + Sqr(y - _maxY);
-                    } else {
-                        d2 = Sqr(x - _maxX);
-                    }
+            float d2;
+            if (x < _minX) {
+                if (y < _minY) {
+                    d2 = Sqr(_minX - x) + Sqr(_minY - y);
+                } else if (y > _maxY) {
+                    d2 = Sqr(_minX - x) + Sqr(y - _maxY);
                 } else {
-                    if (y < _minY) {
-                        d2 = Sqr(_minY - y);
-                    } else if (y > _maxY) {
-                        d2 = Sqr(y - _maxY);
-                    } else {
-                        d2 = 0;
-                    }
+                    d2 = Sqr(_minX - x);
                 }
-
-                if (d2 > *minDist) {
-                    return;
-                }
-
-                *limit -= _len;
-                for (int j = 0; j < _len; ++j) {
-                    TVector dx4;
-                    dx4.v = _mm_sub_ps(_x[j].v, x4.v);
-                    dx4.v = _mm_mul_ps(dx4.v, dx4.v);
-                    TVector dy4;
-                    dy4.v = _mm_sub_ps(_y[j].v, y4.v);
-                    dy4.v = _mm_mul_ps(dy4.v, dy4.v);
-                    dx4.v = _mm_add_ps(dx4.v, dy4.v);
-
-                    TVector cmpMax;
-                    cmpMax.v = _mm_cmple_ps(dx4.v, minMax->v);
-                    for (int k = 0; k < 4; ++k) {
-                        if (cmpMax.f[k]) {
-                            /*
-                            if (dx4.f[k] + EPS < *minDist) {
-                                result->clear();
-                            }
-                            */
-                            if (dx4.f[k] < *minDist) {
-                                *minDist = dx4.f[k];
-                                minMax->v = _mm_set1_ps(*minDist + EPS);
-                            }
-                            result->push_back(_indices[4 * j + k]);
-                        }
-                    }
+            } else if (x > _maxX) {
+                if (y < _minY) {
+                    d2 = Sqr(x - _maxX) + Sqr(_minY - y);
+                } else if (y > _maxY) {
+                    d2 = Sqr(x - _maxX) + Sqr(y - _maxY);
+                } else {
+                    d2 = Sqr(x - _maxX);
                 }
             } else {
-                if (rand() & 1) {
-                if (_left) {
-                    _left->Solve(x, y, x4, y4, minDist, minMax, result, limit);
-                }
-                if (_right) {
-                    _right->Solve(x, y, x4, y4, minDist, minMax, result, limit);
-                }
+                if (y < _minY) {
+                    d2 = Sqr(_minY - y);
+                } else if (y > _maxY) {
+                    d2 = Sqr(y - _maxY);
                 } else {
+                    d2 = 0;
+                }
+            }
+
+            if (d2 > *minDist) {
+                return;
+            }
+
+            *limit -= _len;
+            for (int j = 0; j < _len; ++j) {
+                TVector dx4;
+                dx4.v = _mm_sub_ps(_x[j].v, x4.v);
+                dx4.v = _mm_mul_ps(dx4.v, dx4.v);
+                TVector dy4;
+                dy4.v = _mm_sub_ps(_y[j].v, y4.v);
+                dy4.v = _mm_mul_ps(dy4.v, dy4.v);
+                dx4.v = _mm_add_ps(dx4.v, dy4.v);
+
+                TVector cmpMax;
+                cmpMax.v = _mm_cmple_ps(dx4.v, minMax->v);
+                for (int k = 0; k < 4; ++k) {
+                    if (cmpMax.f[k]) {
+                        /*
+                        if (dx4.f[k] + EPS < *minDist) {
+                        result->clear();
+                        }
+                        */
+                        if (dx4.f[k] < *minDist) {
+                            *minDist = dx4.f[k];
+                            minMax->v = _mm_set1_ps(*minDist + EPS);
+                        }
+                        result->push_back(_indices[4 * j + k]);
+                    }
+                }
+            }
+        } else {
+            if (rand() & 1) {
+                if (_left) {
+                    _left->Solve(x, y, x4, y4, minDist, minMax, result, limit);
+                }
+                if (_right) {
+                    _right->Solve(x, y, x4, y4, minDist, minMax, result, limit);
+                }
+            } else {
                 if (_right) {
                     _right->Solve(x, y, x4, y4, minDist, minMax, result, limit);
                 }
                 if (_left) {
                     _left->Solve(x, y, x4, y4, minDist, minMax, result, limit);
-                }
                 }
             }
         }
+    }
 };
 
-const float KDTree::EPS = 1e-7f;
+const float KDTree::EPS = 1e-5f;
 
 void GenBig()
 {
@@ -509,11 +513,11 @@ struct QDouble {
         long double diff2 = _int - floor(_int);
         _int -= diff2;
         _float += diff2;
-        
+
         long double diff = floor(_float);
         _float -= diff;
         _int += diff;
-        
+
         if (_float < 0.0) {
             _float += 1.0;
             _int -= 1.0;
@@ -670,6 +674,34 @@ Point CircumCenter(const Point& a, const Point& b, const Point& c) {
     return Point((u * (b._y - c._y) - v * (a._y - b._y)) / den, (v * (a._x - b._x) - u * (b._x - c._x)) / den, -1);
 }
 
+struct Circle {
+    Point _center;
+    TBase _r;
+    Integers _indices;
+
+    void MinD(const Point& q, TBase* mind, Integers* result) const {
+        TBase r2 = Sqr(_r);
+        if (r2 < *mind  + 1e-6) {
+            if (r2 < *mind) {
+                *mind = r2; 
+            }
+            if (q.Distance2(_center) < 1e-6) {
+                result->insert(result->end(), _indices.begin(), _indices.end());
+            }
+        }
+    }
+
+    bool operator!=(const Circle& rhs) const {
+        if (_center.Distance2(rhs._center) > 1e-7) {
+            return true;
+        }
+        if (abs(_r - rhs._r) > 1e-5) {
+            return true;
+        }
+        return false;
+    }
+};
+
 int main() {
 #ifndef ONLINE_JUDGE
     GenBig();
@@ -710,10 +742,12 @@ int main() {
     vector<Integers> graph;
     graph.resize(m);
 
-    static const size_t NCENTERS = 6;
+    static const size_t NCENTERS = 28;
     Points centers;
     vector<PointProjections> angles;
-    
+
+    vector<Circle> circles;
+
     Points points(m);
     {
         for (int i = 0; i < m; ++i) {
@@ -723,18 +757,57 @@ int main() {
         centers.resize(NCENTERS);
         angles.resize(NCENTERS);
         for (int it = 0; it < NCENTERS; ++it) {
-            int index1 = rand() % m;
-            int index2 = rand() % m;
-            int index3 = rand() % m;
-            centers[it] = CircumCenter(points[index1], points[index2], points[index3]);
+            Point cc = CircumCenter(points[rand() % m], points[rand() % m], points[rand() % m]);
+            int iit = 0;
+            while (iit < 100 && find(centers.begin(), centers.end(), cc) != centers.end() ) {
+                cc = CircumCenter(points[rand() % m], points[rand() % m], points[rand() % m]);
+                ++iit;
+            }
+            centers[it] = cc;
             angles[it].resize(m);
+
+            for (int i = 0; i < m; ++i) {
+                angles[it][i]._p = &points[i];
+                angles[it][i]._projection = points[i].Distance2(centers[it]);
+            }
+            sort(angles[it].begin(), angles[it].end());
+
+            int index = 0;
+            while (index < angles[it].size()) {
+                int endindex = index + 100;
+                static const TBase CEPS = 1e-2;
+                if (endindex < angles[it].size() && angles[it][endindex]._projection <= angles[it][index]._projection + CEPS) {
+                    while (endindex < angles[it].size() && angles[it][endindex]._projection <= angles[it][index]._projection + CEPS) {
+                        ++endindex;
+                    }
+                    Circle c;
+                    c._center = centers[it];
+                    c._r = angles[it][index]._projection;
+                    int i = 0;
+                    while (i < circles.size() && c != circles[i]) {
+                        ++i;
+                    }
+                    if (i == circles.size()) {
+                        c._indices.reserve(endindex - index);
+                        for (int i = index; i < endindex; ++i) {
+                            c._indices.push_back(angles[it][i]._p->_index);
+                        }
+                        circles.push_back(c);
+                    }
+                    index = endindex;
+                } else {
+                    ++index;
+                }
+            }
+            
             for (int i = 0; i < m; ++i) {
                 angles[it][i]._p = &points[i];
                 angles[it][i]._projection = Angle(points[i], centers[it]);
             }
             sort(angles[it].begin(), angles[it].end());
         }
-        
+
+        /*
         PointProjections projections(m);
 
         static const int N_IT = 5;
@@ -823,6 +896,7 @@ int main() {
         }
 
         DedupGraph(graph);
+        */
     }
 
     KDTree* kdTree;
@@ -846,6 +920,7 @@ int main() {
     used.resize(m);
     queue<int> qu;
 
+    /*
     Integers components;
     for (int i = 0; i < m; ++i) {
         if (!used[i]) {
@@ -868,6 +943,7 @@ int main() {
     for (int i = 0; i < m; ++i) {
         used[i] = false;
     }
+    */
 
     for (int i = 0; i < n; ++i) {
         QPoint qq;
@@ -883,9 +959,11 @@ int main() {
         __m128d xy = _mm_set_pd(x, y);
 
         dindices.clear();
-        
-        temp.clear();
+
         TBase mind = 1e30;
+        
+        /*
+        temp.clear();
         for (int j = 0; j < components.size(); ++j) {
             int index = components[j];
             qu.push(index);
@@ -903,7 +981,7 @@ int main() {
         while (!qu.empty()) {
             int index = qu.front();
             qu.pop();
-            
+
             __m128d xyd2 = _mm_sub_pd(xyd[index], xy);
             xyd2 = _mm_mul_pd(xyd2, xyd2);
             long double dist = GET_ITEM2(xyd2, 0) + GET_ITEM2(xyd2, 1);
@@ -930,6 +1008,7 @@ int main() {
         for (int k = 0; k < temp.size(); ++k) {
             used[temp[k]] = false;
         }
+        */
 
         for (int k = 0; k < NCENTERS; ++k) {
             PointProjection qpp;
@@ -945,7 +1024,7 @@ int main() {
                     toCand -= angles[k].size();
                 TBase d = pq.Distance2(*(toCand->_p));
                 if (d <= mind) {
-                    if (d + 1e-6 < mind) {
+                    if (d + 1e-7 < mind) {
                         dindices.clear();
                     }
                     if (d < mind) {
@@ -955,11 +1034,16 @@ int main() {
                 }
             }
         }
+
+        for (int k = 0; k < circles.size(); ++k) {
+            circles[k].MinD(pq, &mind, &dindices);
+        }
+
         sort(dindices.begin(), dindices.end());
         dindices.erase(unique(dindices.begin(), dindices.end()), dindices.end());
 
-        static const size_t FALLBACK_LIMIT = 100;
-        
+        static const size_t FALLBACK_LIMIT = 10000;
+
         bool fallback = false;
         if (dindices.size() < FALLBACK_LIMIT) {
             float xn = x / mx;
@@ -970,10 +1054,10 @@ int main() {
             TVector y4;
             y4.v = _mm_set1_ps(yn);
 
-            float minDist = mind / mx / mx + 1e-6f;
+            float minDist = mind / mx / mx + KDTree::EPS;
             TVector minMax;
             minMax.v = _mm_set1_ps(minDist + KDTree::EPS);
-            int limit = 4000;
+            int limit = 2000;
             kdTree->Solve(xn, yn, x4, y4, &minDist, &minMax, &dindices, &limit);
 
             sort(dindices.begin(), dindices.end());
@@ -996,7 +1080,7 @@ int main() {
 
         long double min = 1e100;
         long double minPlus = 1e100;
-        static const long double LDEPS(1e-11);
+        static const long double LDEPS(5e-12);
         int prevIndex = -1;
         for (int k = 0; k < dindices.size(); ++k) {
             int index = dindices[k];
@@ -1004,6 +1088,7 @@ int main() {
                 __m128d xyd2 = _mm_sub_pd(xyd[index], xy);
                 xyd2 = _mm_mul_pd(xyd2, xyd2);
                 long double d = GET_ITEM2(xyd2, 0) + GET_ITEM2(xyd2, 1);
+                // long double d = dpoints[index].distance2(dq);
                 if (d + LDEPS < min) {
                     result.clear();
                 }
@@ -1020,27 +1105,27 @@ int main() {
         /*
         QDouble min = 1e100;
         QDouble minPlus = 1e100;
-        static const QDouble LDEPS(1e-11);
+        static const QDouble LDEPS(1e-12);
         int prevIndex = -1;
         for (int k = 0; k < dindices.size(); ++k) {
-            int index = dindices[k];
-            if (index > prevIndex) {
-                QDouble d = qq.distance2(qpoints[index]);
-                QDouble temp;
-                QDouble dPlus;
-                Add(d, LDEPS, &dPlus);
-                if (dPlus < min) {
-                    result.clear();
-                }
-                if (d < min) {
-                    min = d;
-                    Add(min, LDEPS, &minPlus);
-                }
-                if (d <= minPlus) {
-                    result.push_back(index);
-                }
-                prevIndex = index;
-            }
+        int index = dindices[k];
+        if (index > prevIndex) {
+        QDouble d = qq.distance2(qpoints[index]);
+        QDouble temp;
+        QDouble dPlus;
+        Add(d, LDEPS, &dPlus);
+        if (dPlus < min) {
+        result.clear();
+        }
+        if (d < min) {
+        min = d;
+        Add(min, LDEPS, &minPlus);
+        }
+        if (d <= minPlus) {
+        result.push_back(index);
+        }
+        prevIndex = index;
+        }
         }
         */
 
