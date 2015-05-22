@@ -36,9 +36,9 @@ int main() {
 		g[s3].push_back(s2);
 	}
 
+	TResult result;
 	static const string ISENBAEV = "Isenbaev";
 	if (g.find(ISENBAEV) != g.end()) {
-		TResult result;
 		TQueue q;
 		q.push(ISENBAEV);
 		result[ISENBAEV] = 0;
