@@ -1,0 +1,15 @@
+#include <string>
+#include <iostream>
+#include <vector>
+
+using namespace std;
+
+typedef vector<bool> TBoolVector;
+typedef vector<TBoolVector> TBoolMatrix;
+
+int main() {
+    string s;
+    cin >> s;
+
+    return 0;
+}
