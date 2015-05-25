@@ -58,12 +58,13 @@ int main() {
 	sort(edges.begin(), edges.end());
 
 	int result = 0;
-	for (int i = 0; i < edges.size(); ++i) {
-		const TEdge& e = edges[i];
-		if (components[e._begin] == -1 && components[e._end] != -1) {
-			result += e._cost;
-			components[e._begin] = components[e._end];
+	for (int i = k; i < n; ++i) {
+		int j = 0;
+		while ((j < edges.size()) && (components[edges[j]._begin] < 0 || components[edges[j]._end] >= 0)) {
+			++j;
 		}
+		components[edges[j]._end] = components[edges[j]._begin];
+		result += edges[j]._cost;
 	}
 
 	cout << result << endl;
