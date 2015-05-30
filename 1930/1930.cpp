@@ -70,8 +70,6 @@ int main() {
 		--begin;
 		--end;
 		g[2 * begin].push_back( TEdge(2*end, 0) );
-		// g[2 * begin + 1].push_back(TEdge(2 * end + 1, 0));
-		// g[2 * end].push_back(TEdge(2 * begin, 0));
 		g[2 * end + 1].push_back(TEdge(2 * begin + 1, 0));
 	}
 
@@ -80,38 +78,36 @@ int main() {
 	scanf("%d%d", &start, &finish);
 	--start;
 	--finish;
+	g[2 * start].push_back(TEdge(2 * start + 1, 0));
+	g[2 * start + 1].push_back(TEdge(2 * start, 0));
 
 	static const int INF = 123456789;
 
-	int ans = INF;
-
-	for (int dstart = 0; dstart < 2; ++dstart) {
-		TQueue q;
-		vector<int> dist(nn);
-		for (int i = 0; i < nn; ++i) {
-			dist[i] = INF;
-		}
-		vector<bool> visited(nn);
-		int iStart = 2 * start + dstart;
-		dist[iStart] = 0;
-		q.push( TQueueItem(iStart, 0) );
-		while (!q.empty()) {
-			TQueueItem item = q.top();
-			q.pop();
-			if (!visited[item._v]) {
-				visited[item._v] = true;
-				for (TEdges::const_iterator toEdge = g[item._v].begin(); toEdge != g[item._v].end(); ++toEdge) {
-					int newDist = dist[item._v] + toEdge->_cost;
-					if (dist[toEdge->_end] > newDist) {
-						dist[toEdge->_end] = newDist;
-						q.push( TQueueItem(toEdge->_end, newDist) );
-					}
+	TQueue q;
+	vector<int> dist(nn);
+	for (int i = 0; i < nn; ++i) {
+		dist[i] = INF;
+	}
+	vector<bool> visited(nn);
+	int iStart = 2 * start;
+	dist[iStart] = 0;
+	q.push(TQueueItem(iStart, 0));
+	while (!q.empty()) {
+		TQueueItem item = q.top();
+		q.pop();
+		if (!visited[item._v]) {
+			visited[item._v] = true;
+			for (TEdges::const_iterator toEdge = g[item._v].begin(); toEdge != g[item._v].end(); ++toEdge) {
+				int newDist = dist[item._v] + toEdge->_cost;
+				if (dist[toEdge->_end] > newDist) {
+					dist[toEdge->_end] = newDist;
+					q.push(TQueueItem(toEdge->_end, newDist));
 				}
 			}
 		}
-		ans = min(ans, dist[2*finish]);
-		ans = min(ans, dist[2 * finish + 1]);
 	}
+	int ans = dist[2 * finish];
+	ans = min(ans, dist[2 * finish + 1]);
 
 	printf("%d\n", ans);
 
