@@ -30,20 +30,24 @@ void DFS(const TGraph& g, int v, TLine* result) {
 	}
 }
 
-void TrackMaxDist(const TGraph& g, const TLine& sDist, const TLine& rDist, int now, TLine* cache, int* result) {
+void TrackMaxDist(const TGraph& g, const TLine& sDist, const TLine& rDist, int now, TLine* cache) {
 	if (-1 == (*cache)[now]) {
-		int mx = 0;
+		int prevs = -1;
 		for (int i = 0; i < g[now].size(); ++i) {
 			int next = g[now][i];
 			if (sDist[next] + 1 == sDist[now]) {
-				TrackMaxDist(g, sDist, rDist, next, cache, result);
-				mx = max(mx, (*cache)[next]);
+				TrackMaxDist(g, sDist, rDist, next, cache);
+                prevs = max(prevs, (*cache)[next]);
 			}
 		}
-		mx = min(mx, rDist[now]);
+        int mx;
+        if (-1 != prevs) {
+            mx = min(prevs, rDist[now]);
+        } else {
+            mx = rDist[now];
+        }
 		(*cache)[now] = mx;		
 	}
-	*result = min(*result, (*cache)[now]);
 }
 
 int main() {
@@ -81,13 +85,12 @@ int main() {
 	TLine rDist;
 	DFS(g, r, &rDist);
 
-	int result = rDist[f];
 	TLine cache(n, -1);
 	cache[s] = rDist[s];
 
-	TrackMaxDist(g, sDist, rDist, f, &cache, &result);
+	TrackMaxDist(g, sDist, rDist, f, &cache);
 
-	printf("%d\n", result);
+	printf("%d\n", cache[f]);
 
 	return 0;
 }
