@@ -30,6 +30,7 @@ typedef vector<TEdges> TGraph;
 bool Good(const TGraph& g, int ml) {
 	vector<bool> visited(g.size());
 	vector<int> stack;
+	stack.reserve(g.size());
 	visited[0] = true;
 	stack.push_back(0);
 	while (!stack.empty()) {
@@ -91,13 +92,17 @@ int main() {
 		}
 	}
 
-	while (!Good(g, l)) {
-		++l;
+	++l;
+	if (l != r) {
+		while (!Good(g, l)) {
+			++l;
+		}
 	}
 
 	printf("%d\n", l);
 
 	vector< pair<int, int> > result;
+	result.reserve(input.size());
 	for (int i = 0; i < input.size(); ++i) {
 		if (get<2>(input[i]) <= l) {
 			result.push_back(make_pair(get<0>(input[i]), get<1>(input[i])));
