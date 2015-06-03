@@ -122,9 +122,9 @@ int main() {
 
 	vector< pair<int, int> > result;
 	result.reserve(input.size());
-	for (int i = 0; i < input.size(); ++i) {
-		if (get<2>(input[i]) <= l) {
-			result.push_back(make_pair(get<0>(input[i]), get<1>(input[i])));
+	for (const auto& p : input) {
+		if (get<2>(p) <= l) {
+			result.push_back(make_pair(get<0>(p), get<1>(p)));
 		}
 	}
 
