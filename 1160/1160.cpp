@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <cstdio>
+#include <cctype>
 
 #include <vector>
 #include <algorithm>
@@ -22,6 +23,10 @@ struct TEdge {
 	{
 
 	}
+
+	bool operator<(const TEdge& rhs) const {
+		return _cost < rhs._cost;
+	}
 };
 
 typedef vector<TEdge> TEdges;
@@ -33,22 +38,34 @@ bool Good(const TGraph& g, int ml) {
 	stack.reserve(g.size());
 	visited[0] = true;
 	stack.push_back(0);
+	int count = 1;
 	while (!stack.empty()) {
 		int now = stack.back();
 		stack.pop_back();
-		for (int i = 0; i < g[now].size(); ++i) {
-			if (!visited[g[now][i]._to] && g[now][i]._cost <= ml) {
-				visited[g[now][i]._to] = true;
-				stack.push_back(g[now][i]._to);
+		for (TEdges::const_iterator toEdge = g[now].begin(); toEdge != g[now].end(); ++toEdge) {
+			if (toEdge->_cost > ml) {
+				break;
+			}
+			if (!visited[toEdge->_to]) {
+				visited[toEdge->_to] = true;
+				stack.push_back(toEdge->_to);
+				++count;
 			}
 		}
 	}
-	for (int i = 0; i < g.size(); ++i) {
-		if (!visited[i]) {
-			return false;
-		}
+	return g.size() == count;
+}
+
+int ReadInt() {
+	int result = 0;
+	char ch = getchar();
+	while (!isdigit(ch))
+		ch = getchar();
+	while (isdigit(ch)) {
+		result = 10 * result + ch - '0';
+		ch = getchar();
 	}
-	return true;
+	return result;
 }
 
 int main() {
@@ -56,20 +73,18 @@ int main() {
 	freopen("input.txt", "r", stdin);
 #endif
 
-	int n;
-	int m;
-	scanf("%d%d", &n, &m);
+	int n = ReadInt();
+	int m = ReadInt();
 
 	int mn = 100000000;
 	int mx = 0;
 	TGraph g(n);
-	vector< tuple<int, int, int> > input;
+	vector< tuple<int, int, int> > input(m);
 	for (int i = 0; i < m; ++i) {
-		int a;
-		int b;
-		int len;
-		scanf("%d%d%d", &a, &b, &len);
-		input.push_back(make_tuple(a, b, len));
+		int a = ReadInt();
+		int b = ReadInt();
+		int len = ReadInt();
+		input[i] = make_tuple(a, b, len);
 		--a;
 		--b;
 		g[a].push_back(TEdge(b, len));
@@ -77,6 +92,10 @@ int main() {
 
 		mn = min(mn, len);
 		mx = max(mx, len);
+	}
+
+	for (int i = 0; i < n; ++i) {
+		sort(g[i].begin(), g[i].end());
 	}
 
 	int l = mn - 1;
@@ -94,7 +113,7 @@ int main() {
 
 	++l;
 	if (l != r) {
-		while (!Good(g, l)) {
+		while ((l < r) && !Good(g, l)) {
 			++l;
 		}
 	}
@@ -110,7 +129,7 @@ int main() {
 	}
 
 	printf("%d\n", result.size());
-	for (auto p : result) {
+	for (const auto& p : result) {
 		printf("%d %d\n", p.first, p.second);
 	}
 
