@@ -35,12 +35,17 @@ int main()
 		g[a][b] = true;
 		g[b][a] = true;
 	}
+	for (int i = 0; i < 2 * n; ++i)
+	{
+		g[i][i] = true;
+	}
 
 	TIntVector s;
 	s.push_back(0);
+	int next = 1;
 	do 
 	{
-		int i = s.back() + 1;
+		int i = next;
 		for (; i < 2 * n; ++i)
 		{
 			int j = 0;
@@ -55,10 +60,12 @@ int main()
 		}
 		if (i == 2 * n)
 		{
+			next = s.back() + 1;
 			s.pop_back();
 		}
 		else
 		{
+			next = 1;
 			s.push_back(i);
 		}
 	} while (!s.empty() && s.size() != n);
