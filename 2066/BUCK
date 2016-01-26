@@ -1,0 +1,4 @@
+cxx_binary(
+    name = '2066',
+    srcs = ['2066.cpp']
+)
