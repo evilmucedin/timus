@@ -1,22 +1,26 @@
 #include <cstdio>
 
-#include <vector>
-#include <algorithm>
-
-using namespace std;
-
 int main() {
     int n;
     scanf("%d", &n);
 
-    vector<int> v(n);
-    for (auto& x: v) {
+    int candidate = 0;
+    int counter = 0;
+    for (int i = 0; i < n; ++i) {
+        int x;
         scanf("%d", &x);
+        if (x == candidate) {
+            ++counter;
+        } else {
+            --counter;
+        }
+        if (counter < 0) {
+            candidate = x;
+            counter = 1;
+        }
     }
 
-    sort(v.begin(), v.end());
-
-    printf("%d\n", v[n/2]);
+    printf("%d\n", candidate);
 
     return 0;
 }

@@ -5,14 +5,14 @@
 using namespace std;
 
 int main() {
-    static const int LIMIT = 10 + 'Z' - 'A';
+    static const int LIMIT = 37;
     int remainders[LIMIT];
     memset(remainders, 0, sizeof(remainders));
-    int min = 2;
+    int min = 1;
     while (cin) {
-        char ch;
+        char ch = -1;
         cin >> ch;
-        if (cin) {
+        if (-1 != ch) {
             int value = -1;
             if (ch >= '0' && ch <= '9') {
                 value = ch - '0';
@@ -29,7 +29,7 @@ int main() {
             }
         }
     }
-    int result = min;
+    int result = min + 1;
     while (result < LIMIT && remainders[result]) {
         ++result;
     }
