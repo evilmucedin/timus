@@ -17,12 +17,13 @@ readIntPair = parseLine <$> B.getLine
 
 getAnswer prefixSums (from:to:_) = (prefixSums ! to) - (prefixSums ! (from - 1))
 
-doMain = do
+genPrefixSums numbers = listArray (0, length numbers) (scanl (+) 0 numbers)
+
+main = do
     n <- readInt
     numbers <- replicateM n readInt
-    let prefixSums = listArray (0, n) (scanl (+) 0 numbers)
+    let prefixSums = genPrefixSums numbers
     m <- readInt
     queries <- replicateM m readIntPair
     mapM_ (print . getAnswer prefixSums) queries
 
-main = doMain

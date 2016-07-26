@@ -1,4 +1,5 @@
 #include <memory.h>
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -12,29 +13,30 @@ int main()
 	cin.rdbuf(fIn.rdbuf());
 #endif
 
-	string s;
-	cin >> s;
+	string spell;
+	cin >> spell;
 
-	int counts[256];
+	static const size_t NCOUNTS = 256;
+	int counts[NCOUNTS];
 	memset(counts, 0, sizeof(counts));
-	for (char ch: s)
+	for (char ch: spell)
 	{
 		unsigned char uch = static_cast<unsigned char>(ch);
 		++counts[uch];
 	}
 
 	int max = 0;
-	unsigned char iMax;
-	for (int i = 0; i < 256; ++i)
+	unsigned char chMax;
+	for (size_t i = 0; i < NCOUNTS; ++i)
 	{
 		if (counts[i] > max)
 		{
 			max = counts[i];
-			iMax = i;
+			chMax = i;
 		}
 	}
 
-	cout << iMax << endl;
+	cout << chMax << endl;
 
 	return 0;
 }
